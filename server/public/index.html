@@ -14,6 +14,13 @@
   a.card:active { background: #222; }
   a.card .name { font-weight: 600; font-size: 17px; }
   a.card .desc { font-size: 13px; color: #999; margin-top: 4px; line-height: 1.4; }
+  .footer { margin-top: 32px; }
+  button { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+  button.danger { background: #3a1a1a; border-color: #663333; color: #f0a; color: #ff8080; }
+  button.danger:active { background: #4a2020; }
+  .confirm { display: none; margin-top: 10px; font-size: 13px; color: #999; }
+  .confirm.open { display: block; }
+  .confirm .actions { display: flex; gap: 10px; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -29,5 +36,34 @@
       <div class="desc">Photo Style, White Balance, ISO, and Creative Control filter over cam.cgi (Wi-Fi).</div>
     </a>
   </div>
+
+  <div class="footer">
+    <button class="danger" onclick="toggleConfirm()">Shut Down Pi</button>
+    <div class="confirm" id="confirm">
+      This will cleanly power off the Pi. You'll need to unplug and replug power (or press its power button, if wired) to turn it back on.
+      <div class="actions">
+        <button class="danger" onclick="shutdown()">Confirm Shutdown</button>
+        <button onclick="toggleConfirm()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleConfirm() {
+      document.getElementById("confirm").classList.toggle("open");
+    }
+    async function shutdown() {
+      document.getElementById("confirm").innerHTML = "Shutting down...";
+      // Body is required, not just decorative -- cpp-httplib on the server
+      // rejects a POST with no Content-Length header at all with a 400,
+      // and some browsers omit that header entirely for a bodyless fetch()
+      // POST. Sending an explicit (empty) JSON body guarantees it's set.
+      await fetch("/api/system/shutdown", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+    }
+  </script>
 </body>
 </html>

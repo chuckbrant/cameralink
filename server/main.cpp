@@ -1242,6 +1242,17 @@ int main() {
         res.set_content(json.str(), "application/json");
     });
 
+    svr.Post("/api/system/shutdown", [](const httplib::Request&, httplib::Response& res) {
+        res.set_content("{\"success\":true}", "application/json");
+        // Give httplib a moment to actually flush this response to the
+        // client before the OS starts going down -- shutdown -h now takes
+        // a few seconds anyway, but detaching means we don't race it.
+        std::thread([]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            system("sudo shutdown -h now");
+        }).detach();
+    });
+
     std::cout << "SonyConfig web app listening on http://0.0.0.0:8080\n";
     svr.listen("0.0.0.0", 8080);
     return 0;
