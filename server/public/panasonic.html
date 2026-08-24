@@ -29,6 +29,7 @@
   .group-heading:first-child { margin-top: 0; }
   .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
   .card-head .name { font-weight: 600; font-size: 15px; }
+  .card .notes { font-size: 12px; color: #999; margin: 8px 0; line-height: 1.4; }
   .netform { display: none; flex-direction: column; gap: 8px; margin-top: 10px; }
   .netform.open { display: flex; }
   .netform input { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
@@ -221,7 +222,8 @@
             <div class="card-head">
               <span class="name">${p.name}</span>
             </div>
-            <button class="small primary">Send to Camera</button>
+            ${p.notes ? `<div class="notes">${p.notes}</div>` : ""}
+            <button class="small primary">Download to Camera</button>
           `;
           card.querySelector("button").addEventListener("click", () => pushPreset(p));
           container.appendChild(card);
