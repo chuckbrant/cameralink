@@ -26,13 +26,16 @@ On the camera: **MENU → Wireless → Access Point Set.** → select the
 cameralink Pi's SSID (whatever you set `AP_SSID` to in
 `scripts/setup-pi.sh`) → enter the AP password.
 
-## 3. Give the camera a static IP
+## 3. Give the camera an IP address
 
-cameralink's access point deliberately runs **without a DHCP server** (see
-[ARCHITECTURE.md](ARCHITECTURE.md#no-dhcp-on-the-access-point) for why), so
-the camera needs a manually-configured address rather than Auto:
+cameralink's access point runs a normal DHCP server (`10.42.0.10`–
+`10.42.0.254`), so on most cameras **Auto** just works — join the network
+and the camera gets an address automatically.
 
-When prompted for **IP Address Setting**, choose **Manual** and enter:
+A **static** address is optional but convenient (the address won't change
+between sessions, so you don't have to check it every time). If the
+camera's Wi-Fi settings support **IP Address Setting: Manual**, you can
+set:
 
 | Field | Value |
 |---|---|
@@ -40,11 +43,17 @@ When prompted for **IP Address Setting**, choose **Manual** and enter:
 | Subnet Mask | `255.255.255.0` |
 | Default Gateway | `10.42.0.1` |
 
+Not every camera's Wi-Fi remote-control feature supports manual IP
+entry — if yours doesn't, Auto/DHCP is the only option, and that's fine;
+just check the address it was assigned before connecting in step 4.
+
 ## 4. Connect from cameralink
 
 Use the camera's MAC address, User, Password, and Fingerprint from step 1,
-plus the static IP from step 3, either through the web UI's "Connect
-(Network)" form or directly against the API:
+plus its IP address (static from step 3, or whatever DHCP assigned —
+check the camera's own network status screen, or look at the Pi's leases
+with `cat /var/lib/NetworkManager/dnsmasq-wlan0.leases`), either through
+the web UI's "Connect (Network)" form or directly against the API:
 
 ```
 curl -X POST http://<pi-ip>:8080/api/connect/network \

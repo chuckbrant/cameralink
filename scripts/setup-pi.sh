@@ -9,9 +9,9 @@
 #   2. Gives the USB gadget interface (usb0) a static IP instead of DHCP
 #      -- DHCP over a link nothing serves DHCP on causes exactly the kind
 #      of intermittent USB flakiness this project hit early on.
-#   3. Creates a WiFi access point (no DHCP -- the camera is configured
-#      with a static IP too, see docs/CAMERA_SETUP.md) that survives
-#      reboots.
+#   3. Creates a WiFi access point (with its own DHCP server, so cameras
+#      that can't do manual/static IP entry over WiFi still work -- see
+#      docs/ARCHITECTURE.md) that survives reboots.
 #
 # Placeholders to fill in below before running:
 #   AP_SSID, AP_PASSWORD  -- your own choice, WPA2, keep AP_PASSWORD 8+ chars
@@ -51,12 +51,19 @@ sudo nmcli connection modify netplan-eth0 \
   ipv4.method manual ipv4.addresses "$USB_STATIC_IP" ipv6.method disabled || \
   echo "note: connection 'netplan-eth0' not found yet -- it's created on first boot with gadget mode active. Re-run this script after that first reboot."
 
-echo "==> Creating WiFi access point '$AP_SSID' (no DHCP server)"
+echo "==> Creating WiFi access point '$AP_SSID' (with DHCP)"
 sudo nmcli connection delete "$AP_CON_NAME" 2>/dev/null || true
 sudo nmcli device wifi hotspot ifname wlan0 con-name "$AP_CON_NAME" \
   ssid "$AP_SSID" band bg password "$AP_PASSWORD"
+# 'shared' is NetworkManager's built-in AP mode: keeps the gateway address
+# fixed at 10.42.0.1 but also runs dnsmasq (DHCP range 10.42.0.10-.254) --
+# needed for cameras that can't be configured with a manual/static IP over
+# WiFi. A camera that *can* still works fine with a static address in that
+# same subnet; DHCP here is unrelated to (and doesn't reintroduce) the
+# usb0 stability bug this script's step 2 works around -- see
+# docs/ARCHITECTURE.md.
 sudo nmcli connection modify "$AP_CON_NAME" \
-  ipv4.method manual ipv4.addresses 10.42.0.1/24 \
+  ipv4.method shared ipv4.addresses 10.42.0.1/24 \
   connection.autoconnect yes connection.autoconnect-priority 100
 
 echo "==> Disabling autoconnect on any other WiFi profile so the AP always wins on boot"
