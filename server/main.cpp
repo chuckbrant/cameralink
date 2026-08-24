@@ -995,12 +995,22 @@ std::string writeRecipeJson(const std::string& body) {
         if (err) fprintf(stderr, "[writeRecipeJson] WB B-Gain not applied (0x%x)\n", err);
     }
 
+    std::string isoStr;
     double isoValue;
-    if (jsonFindNumber(body, "iso", isoValue)) {
+    bool haveIso = false;
+    CrInt64u isoRawValue = 0;
+    if (jsonFindString(body, "iso", isoStr) && isoStr == "Auto") {
+        isoRawValue = SDK::CrISO_AUTO;
+        haveIso = true;
+    } else if (jsonFindNumber(body, "iso", isoValue)) {
+        isoRawValue = (CrInt64u)(int64_t)isoValue & 0xFFFFFF;
+        haveIso = true;
+    }
+    if (haveIso) {
         SDK::CrDeviceProperty prop;
         prop.SetCode(SDK::CrDeviceProperty_IsoSensitivity);
         prop.SetValueType(SDK::CrDataType_UInt32);
-        CrInt64u raw = ((CrInt64u)SDK::CrISO_Normal << 24) | ((CrInt64u)(int64_t)isoValue & 0xFFFFFF);
+        CrInt64u raw = ((CrInt64u)SDK::CrISO_Normal << 24) | isoRawValue;
         prop.SetCurrentValue(raw);
         SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
         if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set ISO 0x%x", err); return buf; }

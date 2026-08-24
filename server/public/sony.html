@@ -75,8 +75,56 @@
       </select>
     </div>
     <div id="sliders"></div>
-    <div class="wb" id="wbInfo">White Balance: --</div>
-    <div class="wb" id="isoInfo">ISO: --</div>
+
+    <h3 class="group-heading">White Balance</h3>
+    <div class="row">
+      <label>Mode</label>
+      <select id="wbMode" onchange="pushRecipe()">
+        <option value="AWB">AWB</option>
+        <option value="Daylight">Daylight</option>
+        <option value="Shade">Shade</option>
+        <option value="Cloudy">Cloudy</option>
+        <option value="Tungsten">Tungsten</option>
+        <option value="Fluorescent">Fluorescent</option>
+        <option value="Flash">Flash</option>
+        <option value="ColorTemp">Color Temp/Filter</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Color Temp (K)</label>
+      <input type="number" id="wbColorTempK" min="2500" max="9900" step="100" onchange="pushRecipe()">
+    </div>
+    <div class="row">
+      <label>Tint (A/B-G/M)</label>
+      <input type="number" id="wbTint" min="-99" max="99" onchange="pushRecipe()">
+    </div>
+    <div class="row">
+      <label>R-Gain</label>
+      <input type="number" id="wbRGain" step="0.1" onchange="pushRecipe()">
+    </div>
+    <div class="row">
+      <label>B-Gain</label>
+      <input type="number" id="wbBGain" step="0.1" onchange="pushRecipe()">
+    </div>
+
+    <h3 class="group-heading">ISO</h3>
+    <div class="row">
+      <label>Sensitivity</label>
+      <select id="iso" onchange="pushRecipe()">
+        <option value="Auto">Auto</option>
+        <option value="100">100</option><option value="125">125</option><option value="160">160</option>
+        <option value="200">200</option><option value="250">250</option><option value="320">320</option>
+        <option value="400">400</option><option value="500">500</option><option value="640">640</option>
+        <option value="800">800</option><option value="1000">1000</option><option value="1250">1250</option>
+        <option value="1600">1600</option><option value="2000">2000</option><option value="2500">2500</option>
+        <option value="3200">3200</option><option value="4000">4000</option><option value="5000">5000</option>
+        <option value="6400">6400</option><option value="8000">8000</option><option value="10000">10000</option>
+        <option value="12800">12800</option><option value="16000">16000</option><option value="20000">20000</option>
+        <option value="25600">25600</option><option value="32000">32000</option><option value="51200">51200</option>
+        <option value="102400">102400</option>
+      </select>
+    </div>
+
     <div class="actions">
       <button onclick="saveAsNewRecipe()">Save Current As New Recipe</button>
     </div>
@@ -155,6 +203,21 @@
       if (r.success) await refresh();
     }
 
+    // The API's read-side white balance names (e.g. "Color Temp/Filter",
+    // the various Fluorescent_* variants, Custom slots) don't all line up
+    // 1:1 with the write-side names the <select> above offers -- this maps
+    // a read-back name onto the closest editable mode. Custom/Underwater
+    // Auto fall back to AWB since the write path doesn't support them either.
+    const wbModeFromReadName = {
+      "AWB": "AWB", "Daylight": "Daylight", "Shade": "Shade", "Cloudy": "Cloudy",
+      "Tungsten": "Tungsten", "Fluorescent": "Fluorescent",
+      "Fluorescent (Warm White)": "Fluorescent", "Fluorescent (Cool White)": "Fluorescent",
+      "Fluorescent (Day White)": "Fluorescent", "Fluorescent (Daylight)": "Fluorescent",
+      "Flash": "Flash", "Color Temp/Filter": "ColorTemp",
+      "Custom 1": "AWB", "Custom 2": "AWB", "Custom 3": "AWB", "Custom": "AWB",
+      "Underwater Auto": "AWB",
+    };
+
     async function refresh() {
       const recipe = await api("/api/recipe");
       if (recipe.error) { console.warn(recipe.error); return; }
@@ -165,11 +228,12 @@
           document.getElementById(key + "Val").textContent = recipe[key];
         }
       }
-      let wb = recipe.whiteBalanceMode || "--";
-      if (recipe.whiteBalanceColorTempK) wb += ` (${recipe.whiteBalanceColorTempK}K)`;
-      if (recipe.whiteBalanceTint !== undefined) wb += `, tint ${recipe.whiteBalanceTint}`;
-      document.getElementById("wbInfo").textContent = "White Balance: " + wb;
-      document.getElementById("isoInfo").textContent = "ISO: " + (recipe.iso !== undefined ? recipe.iso : "--");
+      document.getElementById("wbMode").value = wbModeFromReadName[recipe.whiteBalanceMode] || "AWB";
+      if (recipe.whiteBalanceColorTempK !== undefined) document.getElementById("wbColorTempK").value = recipe.whiteBalanceColorTempK;
+      if (recipe.whiteBalanceTint !== undefined) document.getElementById("wbTint").value = recipe.whiteBalanceTint;
+      if (recipe.whiteBalanceRGain !== undefined) document.getElementById("wbRGain").value = recipe.whiteBalanceRGain;
+      if (recipe.whiteBalanceBGain !== undefined) document.getElementById("wbBGain").value = recipe.whiteBalanceBGain;
+      if (recipe.iso !== undefined) document.getElementById("iso").value = recipe.iso;
     }
 
     async function pushRecipe() {
@@ -177,6 +241,13 @@
       for (const [key] of fields) {
         body[key] = parseInt(document.getElementById(key).value, 10);
       }
+      body.whiteBalanceMode = document.getElementById("wbMode").value;
+      if (document.getElementById("wbColorTempK").value !== "") body.whiteBalanceColorTempK = parseInt(document.getElementById("wbColorTempK").value, 10);
+      if (document.getElementById("wbTint").value !== "") body.whiteBalanceTint = parseInt(document.getElementById("wbTint").value, 10);
+      if (document.getElementById("wbRGain").value !== "") body.whiteBalanceRGain = parseFloat(document.getElementById("wbRGain").value);
+      if (document.getElementById("wbBGain").value !== "") body.whiteBalanceBGain = parseFloat(document.getElementById("wbBGain").value);
+      const isoVal = document.getElementById("iso").value;
+      body.iso = isoVal === "Auto" ? "Auto" : parseInt(isoVal, 10);
       const r = await api("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
