@@ -30,6 +30,7 @@ namespace SDK = SCRSDK;
 // ---------------------------------------------------------------------
 const char* kPresetsJson = R"JSON([
   {
+    "group": "Film Recipe Chart",
     "id": "kodak-portra-400",
     "name": "Kodak Portra 400",
     "preset": "NT",
@@ -42,6 +43,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Low contrast with a light veil for the soft, forgiving latitude look."
   },
   {
+    "group": "Film Recipe Chart",
     "id": "kodak-ektar-100",
     "name": "Kodak Ektar 100",
     "preset": "VV",
@@ -54,6 +56,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Ultra-vivid saturation with fine, sharp detail; Clarity +1 echoes Ektar's crispness."
   },
   {
+    "group": "Film Recipe Chart",
     "id": "kodak-gold-200",
     "name": "Kodak Gold 200",
     "preset": "ST",
@@ -66,6 +69,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Low-to-medium contrast, kept modest, as on the other two Kodak stocks."
   },
   {
+    "group": "Film Recipe Chart",
     "id": "fujifilm-pro-400h",
     "name": "Fujifilm Pro 400H",
     "preset": "NT",
@@ -78,6 +82,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Fujifilm's own copy stresses neutral grays and controlled shadow saturation."
   },
   {
+    "group": "Film Recipe Chart",
     "id": "cinestill-800t",
     "name": "CineStill 800T",
     "preset": "ST",
@@ -91,6 +96,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Matches the film's native tungsten balance -- reproduces the signature blue-teal mismatch if used in daylight."
   },
   {
+    "group": "Film Recipe Chart",
     "id": "ilford-hp5-plus",
     "name": "Ilford HP5 Plus",
     "preset": "BW",
@@ -103,6 +109,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Sony's BW Creative Look has no built-in colored contrast filter simulation; a physical yellow filter can substitute for classic HP5 sky punch."
   },
   {
+    "group": "Film Recipe Chart",
     "id": "fujicolor-superia-xtra-400",
     "name": "Fujicolor Superia X-TRA 400",
     "preset": "ST",
@@ -113,6 +120,304 @@ const char* kPresetsJson = R"JSON([
     "baseISO": "400",
     "whiteBalanceNote": "Color Filter A+1 (not auto-applied)",
     "notes": "Fujifilm's own bulletin emphasizes vibrant reds/blues/yellows and smooth skin tones, so only a mild warm push is used."
+  },
+
+  {
+    "group": "Film Stock Emulation",
+    "id": "filmsim-portra-400",
+    "name": "Portra 400",
+    "preset": "CS1",
+    "contrast": -2, "highlights": -3, "shadows": 1, "fade": 5, "saturation": 1,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6800, "whiteBalanceTint": 32,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (warm, soft-rolloff, low contrast). Pushes to Custom Look CS1 -- see note above."
+  },
+  {
+    "group": "Film Stock Emulation",
+    "id": "filmsim-ektar-100",
+    "name": "Ektar 100",
+    "preset": "CS1",
+    "contrast": 4, "highlights": 0, "shadows": 0, "fade": 2, "saturation": 9,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6350, "whiteBalanceTint": 0,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (punchy saturation/contrast). Pushes to Custom Look CS1."
+  },
+  {
+    "group": "Film Stock Emulation",
+    "id": "filmsim-gold-200",
+    "name": "Gold 200",
+    "preset": "CS1",
+    "contrast": 1, "highlights": -2, "shadows": 1, "fade": 7, "saturation": 3,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 7000, "whiteBalanceTint": 48,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (golden cast, lifted shadows). Pushes to Custom Look CS1."
+  },
+  {
+    "group": "Film Stock Emulation",
+    "id": "filmsim-superia-400",
+    "name": "Superia 400",
+    "preset": "CS1",
+    "contrast": 2, "highlights": -1, "shadows": 0, "fade": 3, "saturation": 6,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6350, "whiteBalanceTint": -32,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (cool green/teal cast). Pushes to Custom Look CS1."
+  },
+  {
+    "group": "Film Stock Emulation",
+    "id": "filmsim-vision3-500t",
+    "name": "Vision3 500T",
+    "preset": "CS1",
+    "contrast": -3, "highlights": -3, "shadows": 2, "fade": 3, "saturation": -2,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 5900, "whiteBalanceTint": -16,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (tungsten cinema stock, desaturated, lifted blacks). Pushes to Custom Look CS1."
+  },
+
+  {
+    "group": "Fujifilm Simulation",
+    "id": "fujisim-provia",
+    "name": "Provia",
+    "preset": "CS1",
+    "contrast": 1, "highlights": -1, "shadows": 0, "fade": 0, "saturation": 2,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6500, "whiteBalanceTint": 0,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (natural, minimal grade). Pushes to Custom Look CS1."
+  },
+  {
+    "group": "Fujifilm Simulation",
+    "id": "fujisim-velvia",
+    "name": "Velvia",
+    "preset": "CS1",
+    "contrast": 5, "highlights": 0, "shadows": 0, "fade": 2, "saturation": 9,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6400, "whiteBalanceTint": 0,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (heavy saturation/contrast landscape stock). Pushes to Custom Look CS1."
+  },
+  {
+    "group": "Fujifilm Simulation",
+    "id": "fujisim-astia",
+    "name": "Astia",
+    "preset": "CS1",
+    "contrast": -3, "highlights": -3, "shadows": 1, "fade": 3, "saturation": 2,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6650, "whiteBalanceTint": 16,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (soft portrait profile). Pushes to Custom Look CS1."
+  },
+  {
+    "group": "Fujifilm Simulation",
+    "id": "fujisim-classic-chrome",
+    "name": "Classic Chrome",
+    "preset": "CS1",
+    "contrast": 4, "highlights": -2, "shadows": -1, "fade": 5, "saturation": -4,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6450, "whiteBalanceTint": 0,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (muted, documentary contrast). Pushes to Custom Look CS1."
+  },
+  {
+    "group": "Fujifilm Simulation",
+    "id": "fujisim-reala-ace",
+    "name": "Reala Ace",
+    "preset": "CS1",
+    "contrast": 3, "highlights": -1, "shadows": -1, "fade": 1, "saturation": 2,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6500, "whiteBalanceTint": 0,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (faithful color, harder tonality). Pushes to Custom Look CS1."
+  },
+  {
+    "group": "Fujifilm Simulation",
+    "id": "fujisim-pro-neg-hi",
+    "name": "Pro Neg. Hi",
+    "preset": "CS1",
+    "contrast": 4, "highlights": -1, "shadows": 0, "fade": 2, "saturation": 5,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6600, "whiteBalanceTint": 16,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (studio portrait, enhanced contrast). Pushes to Custom Look CS1."
+  },
+  {
+    "group": "Fujifilm Simulation",
+    "id": "fujisim-pro-neg-std",
+    "name": "Pro Neg. Std",
+    "preset": "CS1",
+    "contrast": -1, "highlights": -2, "shadows": 1, "fade": 2, "saturation": 3,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6650, "whiteBalanceTint": 24,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (soft transitional skin tones). Pushes to Custom Look CS1."
+  },
+  {
+    "group": "Fujifilm Simulation",
+    "id": "fujisim-classic-neg",
+    "name": "Classic Neg",
+    "preset": "CS1",
+    "contrast": 5, "highlights": -2, "shadows": -1, "fade": 4, "saturation": 3,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6700, "whiteBalanceTint": -64,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (vintage color-negative, green/brown skew). Pushes to Custom Look CS1."
+  },
+  {
+    "group": "Fujifilm Simulation",
+    "id": "fujisim-nostalgic-neg",
+    "name": "Nostalgic Neg",
+    "preset": "CS1",
+    "contrast": 1, "highlights": -4, "shadows": 0, "fade": 6, "saturation": 3,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6900, "whiteBalanceTint": 48,
+    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (amber highlights, 1970s print look). Pushes to Custom Look CS1."
+  },
+
+  {
+    "group": "JP Presets — Daily Collection",
+    "id": "jp-washed-green",
+    "name": "Washed Green",
+    "preset": "CS1",
+    "contrast": 0, "highlights": -6, "shadows": 5, "fade": 3, "saturation": -2,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "JP Presets — Daily Collection",
+    "id": "jp-punch",
+    "name": "Punch",
+    "preset": "CS1",
+    "contrast": 0, "highlights": -9, "shadows": 9, "fade": 1, "saturation": -2,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "JP Presets — Daily Collection",
+    "id": "jp-light-and-dreamy",
+    "name": "Light & Dreamy",
+    "preset": "CS1",
+    "contrast": 0, "highlights": 0, "shadows": 4, "fade": 5, "saturation": -2,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "JP Presets — Daily Collection",
+    "id": "jp-muted",
+    "name": "Muted",
+    "preset": "CS1",
+    "contrast": 0, "highlights": 3, "shadows": 7, "fade": 3, "saturation": -2,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "JP Presets — Daily Collection",
+    "id": "jp-bright-whites",
+    "name": "Bright Whites",
+    "preset": "CS1",
+    "contrast": 0, "highlights": -4, "shadows": 9, "fade": 1, "saturation": -2,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "JP Presets — Daily Collection",
+    "id": "jp-washed-orange",
+    "name": "Washed Orange",
+    "preset": "CS1",
+    "contrast": 0, "highlights": -7, "shadows": 8, "fade": 3, "saturation": -2,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "JP Presets — Daily Collection",
+    "id": "jp-dark-and-moody",
+    "name": "Dark & Moody",
+    "preset": "CS1",
+    "contrast": 0, "highlights": -5, "shadows": 5, "fade": 1, "saturation": -2,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "JP Presets — Daily Collection",
+    "id": "jp-high-key",
+    "name": "High Key",
+    "preset": "CS1",
+    "contrast": 0, "highlights": -6, "shadows": 8, "fade": 4, "saturation": 0,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "JP Presets — Daily Collection",
+    "id": "jp-neutral",
+    "name": "Neutral",
+    "preset": "CS1",
+    "contrast": 0, "highlights": -9, "shadows": 7, "fade": 5, "saturation": -2,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "JP Presets — Daily Collection",
+    "id": "jp-heavy-contrast",
+    "name": "Heavy Contrast",
+    "preset": "CS1",
+    "contrast": 0, "highlights": -2, "shadows": 6, "fade": 2, "saturation": -2,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+
+  {
+    "group": "PS Presets",
+    "id": "ps-1c2m",
+    "name": "1C2M",
+    "preset": "CS1",
+    "contrast": 0, "highlights": -5, "shadows": 0, "fade": 2, "saturation": 0,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "PS Presets",
+    "id": "ps-bluer-hues",
+    "name": "Bluer Hues",
+    "preset": "CS1",
+    "contrast": 3, "highlights": -8, "shadows": 9, "fade": 3, "saturation": 1,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "PS Presets",
+    "id": "ps-classy",
+    "name": "Classy",
+    "preset": "CS1",
+    "contrast": -2, "highlights": -3, "shadows": 1, "fade": 6, "saturation": 0,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "PS Presets",
+    "id": "ps-faded",
+    "name": "Faded",
+    "preset": "CS1",
+    "contrast": 6, "highlights": -4, "shadows": 7, "fade": 5, "saturation": 0,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "PS Presets",
+    "id": "ps-greens",
+    "name": "Greens",
+    "preset": "CS1",
+    "contrast": -2, "highlights": -1, "shadows": 6, "fade": 5, "saturation": 0,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "PS Presets",
+    "id": "ps-summer-vibes",
+    "name": "Summer Vibes",
+    "preset": "CS1",
+    "contrast": -3, "highlights": -4, "shadows": 7, "fade": 5, "saturation": -1,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "PS Presets",
+    "id": "ps-everything",
+    "name": "Everything",
+    "preset": "CS1",
+    "contrast": -5, "highlights": -5, "shadows": 3, "fade": 6, "saturation": -1,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "PS Presets",
+    "id": "ps-liverbuilding",
+    "name": "Liverbuilding",
+    "preset": "CS1",
+    "contrast": -2, "highlights": -6, "shadows": 7, "fade": 5, "saturation": 0,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "PS Presets",
+    "id": "ps-wedding",
+    "name": "Wedding",
+    "preset": "CS1",
+    "contrast": -5, "highlights": -6, "shadows": 3, "fade": 2, "saturation": 0,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "PS Presets",
+    "id": "ps-wedding-boost",
+    "name": "Wedding Boost",
+    "preset": "CS1",
+    "contrast": -5, "highlights": -9, "shadows": 6, "fade": 2, "saturation": 1,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
+  },
+  {
+    "group": "PS Presets",
+    "id": "ps-landscapes",
+    "name": "Landscapes",
+    "preset": "CS1",
+    "contrast": -3, "highlights": -6, "shadows": 5, "fade": 2, "saturation": 0,
+    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
   }
 ])JSON";
 
@@ -575,6 +880,11 @@ std::string writeRecipeJson(const std::string& body) {
         if (err) fprintf(stderr, "[writeRecipeJson] color temp not applied (0x%x)\n", err);
     }
 
+    // WB Tint/R-Gain/B-Gain: non-fatal, same reasoning as color temp above --
+    // these can fail with CrError_Api_InvalidCalled (0x8402) right after a
+    // WB mode switch even after the mode change itself is confirmed applied.
+    // Log and continue rather than aborting fields that come after them
+    // (e.g. ISO) in write order.
     double tint;
     if (jsonFindNumber(body, "whiteBalanceTint", tint)) {
         SDK::CrDeviceProperty prop;
@@ -582,7 +892,7 @@ std::string writeRecipeJson(const std::string& body) {
         prop.SetValueType(SDK::CrDataType_Int8);
         prop.SetCurrentValue((CrInt64u)(int64_t)tint);
         SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set WB tint(A/B) 0x%x", err); return buf; }
+        if (err) fprintf(stderr, "[writeRecipeJson] WB tint(A/B) not applied (0x%x)\n", err);
     }
 
     double rGain;
@@ -592,7 +902,7 @@ std::string writeRecipeJson(const std::string& body) {
         prop.SetValueType(SDK::CrDataType_Int16);
         prop.SetCurrentValue((CrInt64u)(int64_t)std::lround(rGain * 10));
         SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set WB R-Gain 0x%x", err); return buf; }
+        if (err) fprintf(stderr, "[writeRecipeJson] WB R-Gain not applied (0x%x)\n", err);
     }
 
     double bGain;
@@ -602,7 +912,7 @@ std::string writeRecipeJson(const std::string& body) {
         prop.SetValueType(SDK::CrDataType_Int16);
         prop.SetCurrentValue((CrInt64u)(int64_t)std::lround(bGain * 10));
         SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set WB B-Gain 0x%x", err); return buf; }
+        if (err) fprintf(stderr, "[writeRecipeJson] WB B-Gain not applied (0x%x)\n", err);
     }
 
     double isoValue;

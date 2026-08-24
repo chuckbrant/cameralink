@@ -25,6 +25,8 @@
   .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
   .wb { font-size: 13px; color: #aaa; margin-top: 4px; }
   .card { background: #1a1a1a; border: 1px solid #333; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .group-heading { font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.03em; margin: 20px 0 8px; }
+  .group-heading:first-child { margin-top: 0; }
   .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
   .card-head .name { font-weight: 600; font-size: 15px; }
   .card-head .look { font-size: 12px; color: #888; }
@@ -187,33 +189,51 @@
     async function loadPresets() {
       const presets = await api("/api/presets");
       const container = document.getElementById("presets");
+      const groups = new Map();
       for (const p of presets) {
-        const card = document.createElement("div");
-        card.className = "card";
-        card.innerHTML = `
-          <div class="card-head">
-            <span class="name">${p.name}</span>
-            <span class="look">${p.preset}</span>
-          </div>
-          <div class="meta">ISO ${p.baseISO} &middot; ${p.whiteBalanceNote}</div>
-          <div class="notes">${p.notes}</div>
-          <button class="small primary">Download to Camera</button>
-        `;
-        card.querySelector("button").addEventListener("click", () => pushPreset(p));
-        container.appendChild(card);
+        const g = p.group || "Presets";
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g).push(p);
+      }
+      for (const [groupName, items] of groups) {
+        const heading = document.createElement("h3");
+        heading.className = "group-heading";
+        heading.textContent = groupName;
+        container.appendChild(heading);
+        for (const p of items) {
+          const card = document.createElement("div");
+          card.className = "card";
+          const metaParts = [];
+          if (p.baseISO) metaParts.push("ISO " + p.baseISO);
+          if (p.whiteBalanceNote) metaParts.push(p.whiteBalanceNote);
+          card.innerHTML = `
+            <div class="card-head">
+              <span class="name">${p.name}</span>
+              <span class="look">${p.preset}</span>
+            </div>
+            ${metaParts.length ? `<div class="meta">${metaParts.join(" &middot; ")}</div>` : ""}
+            <div class="notes">${p.notes}</div>
+            <button class="small primary">Download to Camera</button>
+          `;
+          card.querySelector("button").addEventListener("click", () => pushPreset(p));
+          container.appendChild(card);
+        }
       }
     }
 
     async function pushPreset(p) {
-      const body = {
-        preset: p.preset,
-        contrast: p.contrast, highlights: p.highlights, shadows: p.shadows, fade: p.fade,
-        sharpness: p.sharpness, sharpnessRange: p.sharpnessRange, clarity: p.clarity,
-        whiteBalanceMode: p.whiteBalanceMode,
-      };
-      if (p.saturation !== null && p.saturation !== undefined) body.saturation = p.saturation;
-      if (p.whiteBalanceColorTempK) body.whiteBalanceColorTempK = p.whiteBalanceColorTempK;
-      if (p.iso) body.iso = p.iso;
+      // Only include fields this preset actually defines -- omitted fields
+      // (e.g. sharpness/clarity for packs with no source data for them)
+      // are left untouched on the camera rather than reset to 0.
+      const body = { preset: p.preset };
+      const optionalFields = [
+        "contrast", "highlights", "shadows", "fade", "saturation",
+        "sharpness", "sharpnessRange", "clarity",
+        "whiteBalanceMode", "whiteBalanceColorTempK", "whiteBalanceTint", "iso",
+      ];
+      for (const key of optionalFields) {
+        if (p[key] !== null && p[key] !== undefined) body[key] = p[key];
+      }
 
       const r = await api("/api/recipe", {
         method: "POST",

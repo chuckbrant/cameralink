@@ -43,9 +43,25 @@ read from the SDK's documentation:
 - Read and write **White Balance** (mode, Tint, R/B Gain, Kelvin color
   temperature)
 - Read and write **ISO**
-- Ships with seven built-in film-stock recipes (Kodak Portra 400, Ektar
-  100, Gold 200; Fujifilm Pro 400H; CineStill 800T; Ilford HP5 Plus;
-  Fujicolor Superia X-TRA 400) as one-tap "push to camera" presets
+- Ships with **42 one-tap "push to camera" presets** across five groups:
+  - **Film Recipe Chart** (7) — Kodak Portra 400/Ektar 100/Gold 200,
+    Fujifilm Pro 400H, CineStill 800T, Ilford HP5 Plus, Fujicolor Superia
+    X-TRA 400. Sourced from published film-stock technical data sheets;
+    every field maps directly onto a real in-camera control.
+  - **Film Stock Emulation** (5) and **Fujifilm Simulation** (9) — ported
+    from a companion iPad photo-editing app's CoreImage-based color
+    grades (same film stocks and Fuji simulations, different math). The
+    source grades use per-channel curves and vignettes the camera has no
+    equivalent for, so these are approximate translations of the closest
+    available knobs (Contrast, Highlights, Shadows, Fade, Saturation,
+    White Balance) — not exact reproductions. See [docs/PRESET_PACKS.md](docs/PRESET_PACKS.md).
+  - **JP Presets — Daily Collection** (10) and **PS Presets** (11) —
+    ported from the same companion app's Lightroom-preset emulations.
+    These lean heavily on per-color-band HSL adjustments, tone curves,
+    and split-toning that a camera JPEG engine simply doesn't expose;
+    only the Basic-panel-equivalent sliders (contrast, highlights,
+    shadows, a fade proxy, saturation) survive the translation. Treat
+    these as loose stylistic nods, not faithful copies.
 
 Full property-level detail, including the real (non-obvious) value ranges
 the SDK doesn't document clearly: [docs/SDK_CAPABILITIES.md](docs/SDK_CAPABILITIES.md).
@@ -75,7 +91,7 @@ be a second client of the same endpoints.
 | `POST /api/disconnect` | Disconnect |
 | `GET /api/recipe` | Read the camera's current live settings |
 | `POST /api/recipe` | Write settings (any subset of fields) |
-| `GET /api/presets` | The built-in film-stock recipes |
+| `GET /api/presets` | The 42 built-in presets, grouped |
 
 ## Project layout
 
@@ -93,8 +109,9 @@ its own Wi-Fi access point, a Sony a7R V connected over that network with
 a static IP, and this server's web UI reachable over a USB-C cable from a
 Mac. Camera → Pi connectivity and Pi → USB-host connectivity have both
 been validated with extended stability testing (not just a one-off
-connection), and all seven built-in recipes have been confirmed to apply
-correctly end-to-end.
+connection), and the full Creative Look + White Balance + ISO field set
+has been confirmed to apply correctly end-to-end, including representative
+presets from all five groups.
 
 Not yet built: a native iPad app (the API is designed for this, see
 above), and Picture Profile's deeper sub-parameters beyond the slot
