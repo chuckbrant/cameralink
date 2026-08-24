@@ -110,3 +110,5 @@ fixed along the way (a use-after-free crash, an off-by-one in a
 preset-slot encoding, a NetworkManager autoconnect-priority bug, and a
 DHCP-retry-loop causing USB instability) are documented in the relevant
 docs above, warts and all, rather than cleaned up after the fact.
+
+Chuck vibecoded the hell out of it :-)
