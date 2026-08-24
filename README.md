@@ -14,6 +14,8 @@ flowchart LR
 
 Full diagram and the reasoning behind it: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+![cameralink web UI showing the film recipe library](docs/images/web-ui.jpg)
+
 ## Why this exists
 
 The obvious approach — a native app on a Mac talking to the camera over
