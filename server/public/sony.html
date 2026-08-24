@@ -1,0 +1,255 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cameralink — Sony</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: -apple-system, sans-serif; background: #111; color: #eee; margin: 0; padding: 20px; max-width: 520px; }
+  h1 { font-size: 20px; margin: 0 0 16px; }
+  .back { display: inline-block; font-size: 13px; color: #888; text-decoration: none; margin-bottom: 10px; }
+  .back:hover { color: #ccc; }
+  h2 { font-size: 15px; margin: 0 0 10px; color: #aaa; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .status { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; font-size: 14px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #666; flex-shrink: 0; }
+  .dot.on { background: #4caf50; }
+  button { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+  button:active { background: #3a3a3a; }
+  button.small { padding: 5px 10px; font-size: 12px; }
+  button.primary { background: #2563eb; border-color: #2563eb; }
+  .row { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+  .row label { width: 110px; font-size: 14px; flex-shrink: 0; }
+  .row input[type=range] { flex: 1; }
+  .row .val { width: 28px; text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; }
+  select { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 6px; font-size: 14px; }
+  .section { margin-top: 28px; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+  .wb { font-size: 13px; color: #aaa; margin-top: 4px; }
+  .card { background: #1a1a1a; border: 1px solid #333; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .group-heading { font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.03em; margin: 20px 0 8px; }
+  .group-heading:first-child { margin-top: 0; }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .card-head .name { font-weight: 600; font-size: 15px; }
+  .card-head .look { font-size: 12px; color: #888; }
+  .card .notes { font-size: 12px; color: #999; margin: 8px 0; line-height: 1.4; }
+  .card .meta { font-size: 12px; color: #777; margin-bottom: 8px; }
+  .netform { display: none; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .netform.open { display: flex; }
+  .netform input { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+</style>
+</head>
+<body>
+  <a href="/" class="back">&larr; Cameras</a>
+  <h1>Sony</h1>
+  <div class="status">
+    <div class="dot" id="dot"></div>
+    <span id="statusText">Not connected</span>
+  </div>
+  <div class="actions">
+    <button onclick="connectUsb()">Connect (USB)</button>
+    <button onclick="toggleNetForm()">Connect (Network)</button>
+    <button onclick="refresh()">Refresh</button>
+  </div>
+  <div class="netform" id="netform">
+    <input id="netIp" placeholder="Camera IP address, e.g. 10.42.0.50">
+    <input id="netMac" placeholder="Camera MAC address, e.g. aa:bb:cc:dd:ee:ff">
+    <input id="netUser" placeholder="User ID (from camera's Access Authen. Info screen)">
+    <input id="netPass" placeholder="Password" type="password">
+    <button class="primary" onclick="connectNetwork()">Connect</button>
+  </div>
+
+  <div class="section">
+    <h2>Film Recipes</h2>
+    <div id="presets"></div>
+  </div>
+
+  <div class="section">
+    <h2>Live Camera State</h2>
+    <div class="row">
+      <label>Preset</label>
+      <select id="preset" onchange="pushRecipe()">
+        <option>ST</option><option>PT</option><option>NT</option><option>VV</option><option>VV2</option>
+        <option>FL</option><option>IN</option><option>SH</option><option>BW</option><option>SE</option>
+        <option>CS1</option><option>CS2</option><option>CS3</option><option>CS4</option><option>CS5</option><option>CS6</option>
+      </select>
+    </div>
+    <div id="sliders"></div>
+    <div class="wb" id="wbInfo">White Balance: --</div>
+    <div class="wb" id="isoInfo">ISO: --</div>
+    <div class="actions">
+      <button onclick="saveAsNewRecipe()">Save Current As New Recipe</button>
+    </div>
+  </div>
+
+  <script>
+    const fields = [
+      ["contrast", "Contrast", -9, 9],
+      ["highlights", "Highlights", -9, 9],
+      ["shadows", "Shadows", -9, 9],
+      ["fade", "Fade", 0, 9],
+      ["saturation", "Saturation", -9, 9],
+      ["sharpness", "Sharpness", 0, 9],
+      ["sharpnessRange", "Sharpness Range", 1, 5],
+      ["clarity", "Clarity", 0, 9],
+    ];
+
+    const slidersEl = document.getElementById("sliders");
+    for (const [key, label, min, max] of fields) {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `
+        <label>${label}</label>
+        <input type="range" id="${key}" min="${min}" max="${max}" value="0">
+        <span class="val" id="${key}Val">0</span>
+      `;
+      slidersEl.appendChild(row);
+      const input = row.querySelector("input");
+      const val = row.querySelector(".val");
+      input.addEventListener("input", () => { val.textContent = input.value; });
+      input.addEventListener("change", () => pushRecipe());
+    }
+
+    async function api(path, opts) {
+      const res = await fetch(path, opts);
+      return res.json();
+    }
+
+    function setStatus(connected, model) {
+      document.getElementById("dot").classList.toggle("on", connected);
+      document.getElementById("statusText").textContent = connected ? model : "Not connected";
+    }
+
+    async function pollStatus() {
+      const s = await api("/api/status");
+      setStatus(s.connected, s.model);
+    }
+
+    function toggleNetForm() {
+      document.getElementById("netform").classList.toggle("open");
+    }
+
+    async function connectUsb() {
+      document.getElementById("statusText").textContent = "Connecting...";
+      const r = await api("/api/connect/usb", { method: "POST" });
+      if (!r.success) alert("Connect failed: " + r.error);
+      await pollStatus();
+      if (r.success) await refresh();
+    }
+
+    async function connectNetwork() {
+      document.getElementById("statusText").textContent = "Connecting...";
+      const body = {
+        ip: document.getElementById("netIp").value,
+        mac: document.getElementById("netMac").value,
+        userId: document.getElementById("netUser").value,
+        password: document.getElementById("netPass").value,
+      };
+      const r = await api("/api/connect/network", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.success) alert("Connect failed: " + r.error);
+      await pollStatus();
+      if (r.success) await refresh();
+    }
+
+    async function refresh() {
+      const recipe = await api("/api/recipe");
+      if (recipe.error) { console.warn(recipe.error); return; }
+      document.getElementById("preset").value = recipe.preset || "ST";
+      for (const [key] of fields) {
+        if (recipe[key] !== undefined) {
+          document.getElementById(key).value = recipe[key];
+          document.getElementById(key + "Val").textContent = recipe[key];
+        }
+      }
+      let wb = recipe.whiteBalanceMode || "--";
+      if (recipe.whiteBalanceColorTempK) wb += ` (${recipe.whiteBalanceColorTempK}K)`;
+      if (recipe.whiteBalanceTint !== undefined) wb += `, tint ${recipe.whiteBalanceTint}`;
+      document.getElementById("wbInfo").textContent = "White Balance: " + wb;
+      document.getElementById("isoInfo").textContent = "ISO: " + (recipe.iso !== undefined ? recipe.iso : "--");
+    }
+
+    async function pushRecipe() {
+      const body = { preset: document.getElementById("preset").value };
+      for (const [key] of fields) {
+        body[key] = parseInt(document.getElementById(key).value, 10);
+      }
+      const r = await api("/api/recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.success) alert("Push failed: " + r.error);
+    }
+
+    function saveAsNewRecipe() {
+      alert("Recipe library isn't wired up yet -- this current camera state can be read via GET /api/recipe.");
+    }
+
+    async function loadPresets() {
+      const presets = await api("/api/presets");
+      const container = document.getElementById("presets");
+      const groups = new Map();
+      for (const p of presets) {
+        const g = p.group || "Presets";
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g).push(p);
+      }
+      for (const [groupName, items] of groups) {
+        const heading = document.createElement("h3");
+        heading.className = "group-heading";
+        heading.textContent = groupName;
+        container.appendChild(heading);
+        for (const p of items) {
+          const card = document.createElement("div");
+          card.className = "card";
+          const metaParts = [];
+          if (p.baseISO) metaParts.push("ISO " + p.baseISO);
+          if (p.whiteBalanceNote) metaParts.push(p.whiteBalanceNote);
+          card.innerHTML = `
+            <div class="card-head">
+              <span class="name">${p.name}</span>
+              <span class="look">${p.preset}</span>
+            </div>
+            ${metaParts.length ? `<div class="meta">${metaParts.join(" &middot; ")}</div>` : ""}
+            <div class="notes">${p.notes}</div>
+            <button class="small primary">Download to Camera</button>
+          `;
+          card.querySelector("button").addEventListener("click", () => pushPreset(p));
+          container.appendChild(card);
+        }
+      }
+    }
+
+    async function pushPreset(p) {
+      // Only include fields this preset actually defines -- omitted fields
+      // (e.g. sharpness/clarity for packs with no source data for them)
+      // are left untouched on the camera rather than reset to 0.
+      const body = { preset: p.preset };
+      const optionalFields = [
+        "contrast", "highlights", "shadows", "fade", "saturation",
+        "sharpness", "sharpnessRange", "clarity",
+        "whiteBalanceMode", "whiteBalanceColorTempK", "whiteBalanceTint", "iso",
+      ];
+      for (const key of optionalFields) {
+        if (p[key] !== null && p[key] !== undefined) body[key] = p[key];
+      }
+
+      const r = await api("/api/recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.success) { alert("Push failed: " + r.error); return; }
+      await refresh();
+    }
+
+    pollStatus();
+    loadPresets();
+    setInterval(pollStatus, 5000);
+  </script>
+</body>
+</html>

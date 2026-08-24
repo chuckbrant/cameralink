@@ -21,6 +21,52 @@
 namespace SDK = SCRSDK;
 
 // ---------------------------------------------------------------------
+// Panasonic preset tables, transcribed from the G9's own cam.cgi
+// allmenu.xml dump. Unlike Sony's Creative Look, cam.cgi exposes no
+// continuous sub-parameters (contrast/sharpness/saturation/NR) for Photo
+// Style at all -- confirmed by enumerating all 34 cmd_type values the
+// protocol supports. So these are just the camera's own named presets,
+// not a graded recipe.
+// ---------------------------------------------------------------------
+const char* kPanasonicPresetsJson = R"JSON([
+  {"group": "Photo Style", "id": "ps-standard", "name": "Standard", "photoStyle": "standard"},
+  {"group": "Photo Style", "id": "ps-vivid", "name": "Vivid", "photoStyle": "vivid"},
+  {"group": "Photo Style", "id": "ps-natural", "name": "Natural", "photoStyle": "natural"},
+  {"group": "Photo Style", "id": "ps-mono", "name": "Monochrome", "photoStyle": "bw"},
+  {"group": "Photo Style", "id": "ps-lmono", "name": "L.Monochrome", "photoStyle": "l_bw"},
+  {"group": "Photo Style", "id": "ps-lmonod", "name": "L.Monochrome D", "photoStyle": "l_bw_d"},
+  {"group": "Photo Style", "id": "ps-scenery", "name": "Scenery", "photoStyle": "scenery"},
+  {"group": "Photo Style", "id": "ps-portrait", "name": "Portrait", "photoStyle": "portrait"},
+  {"group": "Photo Style", "id": "ps-cinelike-d", "name": "Cinelike D2", "photoStyle": "cinelike_d"},
+  {"group": "Photo Style", "id": "ps-cinelike-v", "name": "Cinelike V2", "photoStyle": "cinelike_v"},
+  {"group": "Photo Style", "id": "ps-hlg", "name": "HLG", "photoStyle": "hlg"},
+  {"group": "Photo Style", "id": "ps-vlog", "name": "V-Log", "photoStyle": "vlog_gamma"},
+
+  {"group": "Creative Control", "id": "cc-pop", "name": "Expressive", "filterEffect": "pop"},
+  {"group": "Creative Control", "id": "cc-retro", "name": "Retro", "filterEffect": "retro"},
+  {"group": "Creative Control", "id": "cc-old-days", "name": "Old Days", "filterEffect": "old_days"},
+  {"group": "Creative Control", "id": "cc-high-key", "name": "High Key", "filterEffect": "high_key"},
+  {"group": "Creative Control", "id": "cc-low-key", "name": "Low Key", "filterEffect": "low_key"},
+  {"group": "Creative Control", "id": "cc-sepia", "name": "Sepia", "filterEffect": "sepia"},
+  {"group": "Creative Control", "id": "cc-mono", "name": "Monochrome", "filterEffect": "monochro"},
+  {"group": "Creative Control", "id": "cc-dyn-mono", "name": "Dynamic Monochrome", "filterEffect": "dynamic_monochro"},
+  {"group": "Creative Control", "id": "cc-rough-mono", "name": "Rough Monochrome", "filterEffect": "rough_monochro"},
+  {"group": "Creative Control", "id": "cc-silky-mono", "name": "Silky Monochrome", "filterEffect": "silky_monochro"},
+  {"group": "Creative Control", "id": "cc-impressive", "name": "Impressive Art", "filterEffect": "impressive_art"},
+  {"group": "Creative Control", "id": "cc-hdyn", "name": "High Dynamic", "filterEffect": "high_dynamic"},
+  {"group": "Creative Control", "id": "cc-cross", "name": "Cross Process", "filterEffect": "cross_proc"},
+  {"group": "Creative Control", "id": "cc-toy", "name": "Toy Effect", "filterEffect": "toy_photo"},
+  {"group": "Creative Control", "id": "cc-toy-pop", "name": "Toy Pop", "filterEffect": "toy_pop"},
+  {"group": "Creative Control", "id": "cc-bleach", "name": "Bleach Bypass", "filterEffect": "bleach_bypass"},
+  {"group": "Creative Control", "id": "cc-diorama", "name": "Miniature Effect", "filterEffect": "diorama"},
+  {"group": "Creative Control", "id": "cc-soft-focus", "name": "Soft Focus", "filterEffect": "soft_focus"},
+  {"group": "Creative Control", "id": "cc-fantasy", "name": "Fantasy", "filterEffect": "fantasy"},
+  {"group": "Creative Control", "id": "cc-star", "name": "Cross Filter", "filterEffect": "cross_filter"},
+  {"group": "Creative Control", "id": "cc-one-point", "name": "One Point Color", "filterEffect": "one_point_color"},
+  {"group": "Creative Control", "id": "cc-sunshine", "name": "Sunshine", "filterEffect": "sunshine"}
+])JSON";
+
+// ---------------------------------------------------------------------
 // Built-in film recipe presets, transcribed from film_recipe_charts.pdf
 // (page 3, "Film Recipe Chart -- Sony a7R V"). Base ISO and the Color
 // Filter A/G white-balance offsets are shown as reference notes only --
@@ -930,6 +976,121 @@ std::string writeRecipeJson(const std::string& body) {
 }
 
 // ---------------------------------------------------------------------
+// Panasonic cam.cgi client -- unlike the Sony CrSDK path, this is plain
+// unencrypted HTTP/CGI running on the camera's own IP (reverse-engineered
+// protocol, no official SDK exists for Linux). No persistent session or
+// handshake is needed for the calls used here -- each request is
+// independent, so "connect" just means "confirm the camera answers".
+// ---------------------------------------------------------------------
+
+std::mutex g_panasonicMutex;
+bool g_panasonicConnected = false;
+std::string g_panasonicIp;
+std::string g_panasonicModel;
+
+// Extracts the value of a single XML tag, e.g. <modelname>G9</modelname>.
+std::string xmlFindTag(const std::string& xml, const std::string& tag) {
+    std::string open = "<" + tag + ">";
+    std::string close = "</" + tag + ">";
+    size_t pos = xml.find(open);
+    if (pos == std::string::npos) return "";
+    pos += open.size();
+    size_t end = xml.find(close, pos);
+    if (end == std::string::npos) return "";
+    return xml.substr(pos, end - pos);
+}
+
+// Extracts the live value= of a menu item from a curmenu/allmenu dump,
+// e.g. id="menu_item_id_ph_sty" ... value="standard".
+std::string curmenuFindValue(const std::string& xml, const std::string& itemId) {
+    std::string needle = "id=\"" + itemId + "\"";
+    size_t pos = xml.find(needle);
+    if (pos == std::string::npos) return "";
+    size_t lineEnd = xml.find('>', pos);
+    if (lineEnd == std::string::npos) return "";
+    std::string segment = xml.substr(pos, lineEnd - pos);
+    size_t vpos = segment.find("value=\"");
+    if (vpos == std::string::npos) return "";
+    vpos += 7;
+    size_t vend = segment.find('"', vpos);
+    if (vend == std::string::npos) return "";
+    return segment.substr(vpos, vend - vpos);
+}
+
+// GET http://<camIp>/cam.cgi?<query>, returns the response body (empty on
+// any failure -- the camera goes idle/unreachable often, this is normal).
+std::string panasonicGet(const std::string& camIp, const std::string& query) {
+    httplib::Client client(camIp, 80);
+    client.set_connection_timeout(3, 0);
+    client.set_read_timeout(5, 0);
+    auto res = client.Get("/cam.cgi?" + query);
+    if (!res || res->status != 200) return "";
+    return res->body;
+}
+
+std::string panasonicConnect(const std::string& ip) {
+    std::lock_guard<std::mutex> lock(g_panasonicMutex);
+    std::string body = panasonicGet(ip, "mode=getinfo&type=capability");
+    if (body.empty()) return "camera did not respond at " + ip;
+    std::string model = xmlFindTag(body, "modelname");
+    g_panasonicConnected = true;
+    g_panasonicIp = ip;
+    g_panasonicModel = model.empty() ? "Panasonic Camera" : ("Panasonic " + model);
+    return "";
+}
+
+std::string panasonicReadRecipeJson() {
+    std::string ip;
+    {
+        std::lock_guard<std::mutex> lock(g_panasonicMutex);
+        if (!g_panasonicConnected) return "{\"error\":\"not connected\"}";
+        ip = g_panasonicIp;
+    }
+    std::string xml = panasonicGet(ip, "mode=getinfo&type=curmenu");
+    if (xml.empty()) return "{\"error\":\"camera did not respond\"}";
+
+    std::string photoStyle = curmenuFindValue(xml, "menu_item_id_ph_sty");
+    std::string whiteBalance = curmenuFindValue(xml, "menu_item_id_whitebalance");
+    std::string iso = curmenuFindValue(xml, "menu_item_id_sensitivity");
+    std::string filterEffect = curmenuFindValue(xml, "menu_item_id_filter_set");
+
+    std::ostringstream json;
+    json << "{";
+    json << "\"photoStyle\":\"" << jsonEscape(photoStyle) << "\",";
+    json << "\"whiteBalance\":\"" << jsonEscape(whiteBalance) << "\",";
+    json << "\"iso\":\"" << jsonEscape(iso) << "\",";
+    json << "\"filterEffect\":\"" << jsonEscape(filterEffect) << "\"";
+    json << "}";
+    return json.str();
+}
+
+std::string panasonicWriteRecipeJson(const std::string& body) {
+    std::string ip;
+    {
+        std::lock_guard<std::mutex> lock(g_panasonicMutex);
+        if (!g_panasonicConnected) return "not connected";
+        ip = g_panasonicIp;
+    }
+
+    // cmd_type -> JSON key, straight from allmenu.xml's own command shapes.
+    static const std::vector<std::pair<std::string, std::string>> fields = {
+        {"photoStyle", "colormode"},
+        {"whiteBalance", "whitebalance"},
+        {"iso", "iso"},
+        {"filterEffect", "filter_setting"},
+    };
+    for (auto& [jsonKey, cmdType] : fields) {
+        std::string value;
+        if (!jsonFindString(body, jsonKey, value)) continue;
+        std::string reply = panasonicGet(ip, "mode=setsetting&type=" + cmdType + "&value=" + value);
+        if (reply.find("<result>ok</result>") == std::string::npos) {
+            return "failed to set " + jsonKey + " (camera replied: " + reply + ")";
+        }
+    }
+    return "";
+}
+
+// ---------------------------------------------------------------------
 // HTTP server
 // ---------------------------------------------------------------------
 
@@ -990,6 +1151,47 @@ int main() {
 
     svr.Post("/api/recipe", [](const httplib::Request& req, httplib::Response& res) {
         std::string error = writeRecipeJson(req.body);
+        std::ostringstream json;
+        json << "{\"success\":" << (error.empty() ? "true" : "false")
+             << ",\"error\":\"" << jsonEscape(error) << "\"}";
+        res.set_content(json.str(), "application/json");
+    });
+
+    svr.Get("/api/panasonic/status", [](const httplib::Request&, httplib::Response& res) {
+        std::lock_guard<std::mutex> lock(g_panasonicMutex);
+        std::ostringstream json;
+        json << "{\"connected\":" << (g_panasonicConnected ? "true" : "false")
+             << ",\"model\":\"" << jsonEscape(g_panasonicModel) << "\""
+             << ",\"ip\":\"" << jsonEscape(g_panasonicIp) << "\"}";
+        res.set_content(json.str(), "application/json");
+    });
+
+    svr.Post("/api/panasonic/connect", [](const httplib::Request& req, httplib::Response& res) {
+        std::string ip;
+        jsonFindString(req.body, "ip", ip);
+        std::string error = panasonicConnect(ip);
+        std::ostringstream json;
+        json << "{\"success\":" << (error.empty() ? "true" : "false")
+             << ",\"error\":\"" << jsonEscape(error) << "\"}";
+        res.set_content(json.str(), "application/json");
+    });
+
+    svr.Post("/api/panasonic/disconnect", [](const httplib::Request&, httplib::Response& res) {
+        std::lock_guard<std::mutex> lock(g_panasonicMutex);
+        g_panasonicConnected = false;
+        res.set_content("{\"success\":true}", "application/json");
+    });
+
+    svr.Get("/api/panasonic/presets", [](const httplib::Request&, httplib::Response& res) {
+        res.set_content(kPanasonicPresetsJson, "application/json");
+    });
+
+    svr.Get("/api/panasonic/recipe", [](const httplib::Request&, httplib::Response& res) {
+        res.set_content(panasonicReadRecipeJson(), "application/json");
+    });
+
+    svr.Post("/api/panasonic/recipe", [](const httplib::Request& req, httplib::Response& res) {
+        std::string error = panasonicWriteRecipeJson(req.body);
         std::ostringstream json;
         json << "{\"success\":" << (error.empty() ? "true" : "false")
              << ",\"error\":\"" << jsonEscape(error) << "\"}";
