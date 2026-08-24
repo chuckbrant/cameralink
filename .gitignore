@@ -1,0 +1,16 @@
+# Sony's Camera Remote SDK (CrSDK) is proprietary and requires accepting
+# Sony's own license agreement to download -- it is NOT redistributed in
+# this repo. See docs/BUILDING.md for how to obtain it and where to place
+# it locally.
+third_party/CrSDK/
+
+# Build output
+server/build/
+*.o
+*.so
+sonyconfig_web
+build/
+
+# OS/editor cruft
+.DS_Store
+*.swp
