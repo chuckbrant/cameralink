@@ -6,7 +6,7 @@
 <title>cameralink</title>
 <style>
   :root { color-scheme: dark; }
-  body { font-family: -apple-system, sans-serif; background: #111; color: #eee; margin: 0; padding: 20px; max-width: 520px; }
+  body { font-family: -apple-system, sans-serif; background: #111; color: #eee; margin: 0 auto; padding: 20px; max-width: 720px; width: 100%; box-sizing: border-box; }
   h1 { font-size: 20px; margin: 0 0 16px; }
   h2 { font-size: 15px; margin: 0 0 10px; color: #aaa; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
   .status { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; font-size: 14px; }
@@ -52,23 +52,10 @@
     <div class="dot" id="dot"></div>
     <span id="statusText">Not connected</span>
   </div>
-  <div class="actions">
-    <button onclick="connectUsb()">Connect (USB)</button>
-    <button onclick="toggleNetForm()">Connect (Network)</button>
-    <button onclick="refresh()">Refresh</button>
-  </div>
-  <div class="netform" id="netform">
-    <input id="netIp" placeholder="Camera IP address, e.g. 10.42.0.50">
-    <input id="netMac" placeholder="Camera MAC address, e.g. aa:bb:cc:dd:ee:ff">
-    <input id="netUser" placeholder="User ID (from camera's Access Authen. Info screen)">
-    <input id="netPass" placeholder="Password" type="password">
-    <button class="primary" onclick="connectNetwork()">Connect</button>
-  </div>
 
   <div class="section">
-    <h2>Film Recipes</h2>
-    <div class="tabs" id="presetTabs"></div>
-    <div id="presets"></div>
+    <div class="tabs" id="mainTabs"></div>
+    <div id="tabContent"></div>
   </div>
 
   <div class="section">
@@ -195,14 +182,6 @@
       document.getElementById("netform").classList.toggle("open");
     }
 
-    async function connectUsb() {
-      document.getElementById("statusText").textContent = "Connecting...";
-      const r = await api("/api/connect/usb", { method: "POST" });
-      if (!r.success) alert("Connect failed: " + r.error);
-      await pollStatus();
-      if (r.success) await refresh();
-    }
-
     async function connectNetwork() {
       document.getElementById("statusText").textContent = "Connecting...";
       const body = {
@@ -290,8 +269,9 @@
       "PS Presets": "PS Presets",
     };
 
+    const SETUP_TAB = "__setup__";
     let presetGroups = new Map();
-    let activeGroup = null;
+    let activeTab = SETUP_TAB;
 
     async function loadPresets() {
       const presets = await api("/api/presets");
@@ -301,31 +281,49 @@
         if (!presetGroups.has(g)) presetGroups.set(g, []);
         presetGroups.get(g).push(p);
       }
-      activeGroup = presetGroups.keys().next().value;
-      renderPresetTabs();
-      renderPresetCards();
+      renderTabs();
+      renderTabContent();
     }
 
-    function renderPresetTabs() {
-      const tabsEl = document.getElementById("presetTabs");
+    function renderTabs() {
+      const tabsEl = document.getElementById("mainTabs");
       tabsEl.innerHTML = "";
-      for (const groupName of presetGroups.keys()) {
+      const tabKeys = [SETUP_TAB, ...presetGroups.keys()];
+      for (const key of tabKeys) {
         const btn = document.createElement("button");
-        btn.textContent = groupTabLabels[groupName] || groupName;
-        btn.className = groupName === activeGroup ? "active" : "";
+        btn.textContent = key === SETUP_TAB ? "Setup" : (groupTabLabels[key] || key);
+        btn.className = key === activeTab ? "active" : "";
         btn.addEventListener("click", () => {
-          activeGroup = groupName;
-          renderPresetTabs();
-          renderPresetCards();
+          activeTab = key;
+          renderTabs();
+          renderTabContent();
         });
         tabsEl.appendChild(btn);
       }
     }
 
-    function renderPresetCards() {
-      const container = document.getElementById("presets");
+    function renderTabContent() {
+      const container = document.getElementById("tabContent");
       container.innerHTML = "";
-      const items = presetGroups.get(activeGroup) || [];
+
+      if (activeTab === SETUP_TAB) {
+        container.innerHTML = `
+          <div class="actions">
+            <button onclick="toggleNetForm()">Connect (Network)</button>
+            <button onclick="refresh()">Refresh</button>
+          </div>
+          <div class="netform" id="netform">
+            <input id="netIp" placeholder="Camera IP address, e.g. 10.42.0.50">
+            <input id="netMac" placeholder="Camera MAC address, e.g. aa:bb:cc:dd:ee:ff">
+            <input id="netUser" placeholder="User ID (from camera's Access Authen. Info screen)">
+            <input id="netPass" placeholder="Password" type="password">
+            <button class="primary" onclick="connectNetwork()">Connect</button>
+          </div>
+        `;
+        return;
+      }
+
+      const items = presetGroups.get(activeTab) || [];
       for (const p of items) {
         const card = document.createElement("div");
         card.className = "card";
