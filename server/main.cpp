@@ -123,7 +123,7 @@ const char* kPresetsJson = R"JSON([
   },
 
   {
-    "group": "Film Stock Emulation",
+    "group": "Film Recipe Chart",
     "id": "filmsim-portra-400",
     "name": "Portra 400",
     "preset": "CS1",
@@ -132,7 +132,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from the iPadPhotoFilters CoreImage grade (warm, soft-rolloff, low contrast). Pushes to Custom Look CS1 -- see note above."
   },
   {
-    "group": "Film Stock Emulation",
+    "group": "Film Recipe Chart",
     "id": "filmsim-ektar-100",
     "name": "Ektar 100",
     "preset": "CS1",
@@ -141,7 +141,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from the iPadPhotoFilters CoreImage grade (punchy saturation/contrast). Pushes to Custom Look CS1."
   },
   {
-    "group": "Film Stock Emulation",
+    "group": "Film Recipe Chart",
     "id": "filmsim-gold-200",
     "name": "Gold 200",
     "preset": "CS1",
@@ -150,7 +150,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from the iPadPhotoFilters CoreImage grade (golden cast, lifted shadows). Pushes to Custom Look CS1."
   },
   {
-    "group": "Film Stock Emulation",
+    "group": "Film Recipe Chart",
     "id": "filmsim-superia-400",
     "name": "Superia 400",
     "preset": "CS1",
@@ -159,7 +159,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from the iPadPhotoFilters CoreImage grade (cool green/teal cast). Pushes to Custom Look CS1."
   },
   {
-    "group": "Film Stock Emulation",
+    "group": "Film Recipe Chart",
     "id": "filmsim-vision3-500t",
     "name": "Vision3 500T",
     "preset": "CS1",
@@ -340,7 +340,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
   },
   {
-    "group": "PS Presets",
+    "group": "Micro Four Nerds",
     "id": "ps-bluer-hues",
     "name": "Bluer Hues",
     "preset": "CS1",
@@ -348,7 +348,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
   },
   {
-    "group": "PS Presets",
+    "group": "Micro Four Nerds",
     "id": "ps-classy",
     "name": "Classy",
     "preset": "CS1",
@@ -356,7 +356,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
   },
   {
-    "group": "PS Presets",
+    "group": "Micro Four Nerds",
     "id": "ps-faded",
     "name": "Faded",
     "preset": "CS1",
@@ -364,7 +364,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
   },
   {
-    "group": "PS Presets",
+    "group": "Micro Four Nerds",
     "id": "ps-greens",
     "name": "Greens",
     "preset": "CS1",
@@ -372,7 +372,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
   },
   {
-    "group": "PS Presets",
+    "group": "Micro Four Nerds",
     "id": "ps-summer-vibes",
     "name": "Summer Vibes",
     "preset": "CS1",
@@ -380,7 +380,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
   },
   {
-    "group": "PS Presets",
+    "group": "Micro Four Nerds",
     "id": "ps-everything",
     "name": "Everything",
     "preset": "CS1",
@@ -388,7 +388,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
   },
   {
-    "group": "PS Presets",
+    "group": "Micro Four Nerds",
     "id": "ps-liverbuilding",
     "name": "Liverbuilding",
     "preset": "CS1",
@@ -396,7 +396,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
   },
   {
-    "group": "PS Presets",
+    "group": "Micro Four Nerds",
     "id": "ps-wedding",
     "name": "Wedding",
     "preset": "CS1",
@@ -404,7 +404,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
   },
   {
-    "group": "PS Presets",
+    "group": "Micro Four Nerds",
     "id": "ps-wedding-boost",
     "name": "Wedding Boost",
     "preset": "CS1",
@@ -412,7 +412,7 @@ const char* kPresetsJson = R"JSON([
     "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
   },
   {
-    "group": "PS Presets",
+    "group": "Micro Four Nerds",
     "id": "ps-landscapes",
     "name": "Landscapes",
     "preset": "CS1",

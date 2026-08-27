@@ -58,72 +58,6 @@
     <div id="tabContent"></div>
   </div>
 
-  <div class="section">
-    <h2>Live Camera State</h2>
-    <div class="row">
-      <label>Preset</label>
-      <select id="preset" onchange="pushRecipe()">
-        <option>ST</option><option>PT</option><option>NT</option><option>VV</option><option>VV2</option>
-        <option>FL</option><option>IN</option><option>SH</option><option>BW</option><option>SE</option>
-        <option>CS1</option><option>CS2</option><option>CS3</option><option>CS4</option><option>CS5</option><option>CS6</option>
-      </select>
-    </div>
-    <div id="sliders"></div>
-
-    <h3 class="group-heading">White Balance</h3>
-    <div class="row">
-      <label>Mode</label>
-      <select id="wbMode" onchange="pushRecipe()">
-        <option value="AWB">AWB</option>
-        <option value="Daylight">Daylight</option>
-        <option value="Shade">Shade</option>
-        <option value="Cloudy">Cloudy</option>
-        <option value="Tungsten">Tungsten</option>
-        <option value="Fluorescent">Fluorescent</option>
-        <option value="Flash">Flash</option>
-        <option value="ColorTemp">Color Temp/Filter</option>
-      </select>
-    </div>
-    <div class="row">
-      <label>Color Temp (K)</label>
-      <input type="number" id="wbColorTempK" min="2500" max="9900" step="100" onchange="pushRecipe()">
-    </div>
-    <div class="row">
-      <label>Tint (A/B-G/M)</label>
-      <input type="number" id="wbTint" min="-99" max="99" onchange="pushRecipe()">
-    </div>
-    <div class="row">
-      <label>R-Gain</label>
-      <input type="number" id="wbRGain" step="0.1" onchange="pushRecipe()">
-    </div>
-    <div class="row">
-      <label>B-Gain</label>
-      <input type="number" id="wbBGain" step="0.1" onchange="pushRecipe()">
-    </div>
-
-    <h3 class="group-heading">ISO</h3>
-    <div class="row">
-      <label>Sensitivity</label>
-      <select id="iso" onchange="pushRecipe()">
-        <option value="Auto">Auto</option>
-        <option value="100">100</option><option value="125">125</option><option value="160">160</option>
-        <option value="200">200</option><option value="250">250</option><option value="320">320</option>
-        <option value="400">400</option><option value="500">500</option><option value="640">640</option>
-        <option value="800">800</option><option value="1000">1000</option><option value="1250">1250</option>
-        <option value="1600">1600</option><option value="2000">2000</option><option value="2500">2500</option>
-        <option value="3200">3200</option><option value="4000">4000</option><option value="5000">5000</option>
-        <option value="6400">6400</option><option value="8000">8000</option><option value="10000">10000</option>
-        <option value="12800">12800</option><option value="16000">16000</option><option value="20000">20000</option>
-        <option value="25600">25600</option><option value="32000">32000</option><option value="51200">51200</option>
-        <option value="102400">102400</option>
-      </select>
-    </div>
-
-    <div class="actions">
-      <button onclick="saveAsNewRecipe()">Save Current As New Recipe</button>
-    </div>
-  </div>
-
   <div class="footer">
     <button class="danger" onclick="toggleConfirm()">Shut Down Pi</button>
     <div class="confirm" id="confirm">
@@ -147,20 +81,28 @@
       ["clarity", "Clarity", 0, 9],
     ];
 
-    const slidersEl = document.getElementById("sliders");
-    for (const [key, label, min, max] of fields) {
-      const row = document.createElement("div");
-      row.className = "row";
-      row.innerHTML = `
-        <label>${label}</label>
-        <input type="range" id="${key}" min="${min}" max="${max}" value="0">
-        <span class="val" id="${key}Val">0</span>
-      `;
-      slidersEl.appendChild(row);
-      const input = row.querySelector("input");
-      const val = row.querySelector(".val");
-      input.addEventListener("input", () => { val.textContent = input.value; });
-      input.addEventListener("change", () => pushRecipe());
+    // Builds the Creative Look sliders into #sliders -- called each time the
+    // Custom tab is rendered (that element only exists while that tab is
+    // active), not just once at page load like it used to when this section
+    // was always on the page.
+    function buildSliders() {
+      const slidersEl = document.getElementById("sliders");
+      if (!slidersEl) return;
+      slidersEl.innerHTML = "";
+      for (const [key, label, min, max] of fields) {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = `
+          <label>${label}</label>
+          <input type="range" id="${key}" min="${min}" max="${max}" value="0">
+          <span class="val" id="${key}Val">0</span>
+        `;
+        slidersEl.appendChild(row);
+        const input = row.querySelector("input");
+        const val = row.querySelector(".val");
+        input.addEventListener("input", () => { val.textContent = input.value; });
+        input.addEventListener("change", () => pushRecipe());
+      }
     }
 
     async function api(path, opts) {
@@ -215,10 +157,18 @@
       "Underwater Auto": "AWB",
     };
 
-    async function refresh() {
-      const recipe = await api("/api/recipe");
-      if (recipe.error) { console.warn(recipe.error); return; }
-      document.getElementById("preset").value = recipe.preset || "ST";
+    // Cached so switching to the Custom tab can populate it immediately
+    // from the last known state, without waiting on a fresh fetch -- and so
+    // refresh() itself works fine even when called while some other tab
+    // (Setup, or a preset group) is active and the Custom tab's form
+    // elements don't currently exist in the DOM at all.
+    let latestRecipe = null;
+
+    function applyRecipeToCustomForm() {
+      const presetEl = document.getElementById("preset");
+      if (!presetEl || !latestRecipe) return;
+      const recipe = latestRecipe;
+      presetEl.value = recipe.preset || "ST";
       for (const [key] of fields) {
         if (recipe[key] !== undefined) {
           document.getElementById(key).value = recipe[key];
@@ -233,8 +183,17 @@
       if (recipe.iso !== undefined) document.getElementById("iso").value = recipe.iso;
     }
 
+    async function refresh() {
+      const recipe = await api("/api/recipe");
+      if (recipe.error) { console.warn(recipe.error); return; }
+      latestRecipe = recipe;
+      applyRecipeToCustomForm();
+    }
+
     async function pushRecipe() {
-      const body = { preset: document.getElementById("preset").value };
+      const presetEl = document.getElementById("preset");
+      if (!presetEl) return; // Custom tab isn't showing -- nothing to push
+      const body = { preset: presetEl.value };
       for (const [key] of fields) {
         body[key] = parseInt(document.getElementById(key).value, 10);
       }
@@ -263,13 +222,14 @@
     // logs), this is purely a display trim for the tab bar.
     const groupTabLabels = {
       "Film Recipe Chart": "Film Recipes",
-      "Film Stock Emulation": "Film Stock Emulation",
-      "Fujifilm Simulation": "Fujifilm Simulation",
+      "Fujifilm Simulation": "Fujifilm Sims",
       "JP Presets — Daily Collection": "JP Presets",
       "PS Presets": "PS Presets",
+      "Micro Four Nerds": "Micro Four Nerds",
     };
 
     const SETUP_TAB = "__setup__";
+    const CUSTOM_TAB = "__custom__";
     let presetGroups = new Map();
     let activeTab = SETUP_TAB;
 
@@ -288,10 +248,10 @@
     function renderTabs() {
       const tabsEl = document.getElementById("mainTabs");
       tabsEl.innerHTML = "";
-      const tabKeys = [SETUP_TAB, ...presetGroups.keys()];
+      const tabKeys = [SETUP_TAB, CUSTOM_TAB, ...presetGroups.keys()];
       for (const key of tabKeys) {
         const btn = document.createElement("button");
-        btn.textContent = key === SETUP_TAB ? "Setup" : (groupTabLabels[key] || key);
+        btn.textContent = key === SETUP_TAB ? "Setup" : key === CUSTOM_TAB ? "Custom" : (groupTabLabels[key] || key);
         btn.className = key === activeTab ? "active" : "";
         btn.addEventListener("click", () => {
           activeTab = key;
@@ -320,6 +280,77 @@
             <button class="primary" onclick="connectNetwork()">Connect</button>
           </div>
         `;
+        return;
+      }
+
+      if (activeTab === CUSTOM_TAB) {
+        container.innerHTML = `
+          <div class="row">
+            <label>Preset</label>
+            <select id="preset" onchange="pushRecipe()">
+              <option>ST</option><option>PT</option><option>NT</option><option>VV</option><option>VV2</option>
+              <option>FL</option><option>IN</option><option>SH</option><option>BW</option><option>SE</option>
+              <option>CS1</option><option>CS2</option><option>CS3</option><option>CS4</option><option>CS5</option><option>CS6</option>
+            </select>
+          </div>
+          <div id="sliders"></div>
+
+          <h3 class="group-heading">White Balance</h3>
+          <div class="row">
+            <label>Mode</label>
+            <select id="wbMode" onchange="pushRecipe()">
+              <option value="AWB">AWB</option>
+              <option value="Daylight">Daylight</option>
+              <option value="Shade">Shade</option>
+              <option value="Cloudy">Cloudy</option>
+              <option value="Tungsten">Tungsten</option>
+              <option value="Fluorescent">Fluorescent</option>
+              <option value="Flash">Flash</option>
+              <option value="ColorTemp">Color Temp/Filter</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>Color Temp (K)</label>
+            <input type="number" id="wbColorTempK" min="2500" max="9900" step="100" onchange="pushRecipe()">
+          </div>
+          <div class="row">
+            <label>Tint (A/B-G/M)</label>
+            <input type="number" id="wbTint" min="-99" max="99" onchange="pushRecipe()">
+          </div>
+          <div class="row">
+            <label>R-Gain</label>
+            <input type="number" id="wbRGain" step="0.1" onchange="pushRecipe()">
+          </div>
+          <div class="row">
+            <label>B-Gain</label>
+            <input type="number" id="wbBGain" step="0.1" onchange="pushRecipe()">
+          </div>
+
+          <h3 class="group-heading">ISO</h3>
+          <div class="row">
+            <label>Sensitivity</label>
+            <select id="iso" onchange="pushRecipe()">
+              <option value="Auto">Auto</option>
+              <option value="100">100</option><option value="125">125</option><option value="160">160</option>
+              <option value="200">200</option><option value="250">250</option><option value="320">320</option>
+              <option value="400">400</option><option value="500">500</option><option value="640">640</option>
+              <option value="800">800</option><option value="1000">1000</option><option value="1250">1250</option>
+              <option value="1600">1600</option><option value="2000">2000</option><option value="2500">2500</option>
+              <option value="3200">3200</option><option value="4000">4000</option><option value="5000">5000</option>
+              <option value="6400">6400</option><option value="8000">8000</option><option value="10000">10000</option>
+              <option value="12800">12800</option><option value="16000">16000</option><option value="20000">20000</option>
+              <option value="25600">25600</option><option value="32000">32000</option><option value="51200">51200</option>
+              <option value="102400">102400</option>
+            </select>
+          </div>
+
+          <div class="actions">
+            <button onclick="saveAsNewRecipe()">Save Current As New Recipe</button>
+          </div>
+        `;
+        buildSliders();
+        applyRecipeToCustomForm();
+        refresh();
         return;
       }
 
