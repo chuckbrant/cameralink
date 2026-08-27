@@ -29,6 +29,9 @@
   .card { background: #1a1a1a; border: 1px solid #333; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
   .group-heading { font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.03em; margin: 20px 0 8px; }
   .group-heading:first-child { margin-top: 0; }
+  .tabs { display: flex; gap: 2px; background: #333; border-radius: 10px; padding: 3px; margin-bottom: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tabs button { flex-shrink: 0; white-space: nowrap; background: transparent; border: none; color: #ccc; font-size: 13px; padding: 8px 14px; border-radius: 8px; cursor: pointer; }
+  .tabs button.active { background: #fff; color: #111; font-weight: 600; }
   .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
   .card-head .name { font-weight: 600; font-size: 15px; }
   .card-head .look { font-size: 12px; color: #888; }
@@ -64,6 +67,7 @@
 
   <div class="section">
     <h2>Film Recipes</h2>
+    <div class="tabs" id="presetTabs"></div>
     <div id="presets"></div>
   </div>
 
@@ -274,38 +278,71 @@
       alert("Recipe library isn't wired up yet -- this current camera state can be read via GET /api/recipe.");
     }
 
+    // Shortens the long group names from /api/presets into tab labels that
+    // fit a compact segmented control -- the group names themselves stay
+    // full-length everywhere else (e.g. server-side, and if referenced in
+    // logs), this is purely a display trim for the tab bar.
+    const groupTabLabels = {
+      "Film Recipe Chart": "Film Recipes",
+      "Film Stock Emulation": "Film Stock Emulation",
+      "Fujifilm Simulation": "Fujifilm Simulation",
+      "JP Presets — Daily Collection": "JP Presets",
+      "PS Presets": "PS Presets",
+    };
+
+    let presetGroups = new Map();
+    let activeGroup = null;
+
     async function loadPresets() {
       const presets = await api("/api/presets");
-      const container = document.getElementById("presets");
-      const groups = new Map();
+      presetGroups = new Map();
       for (const p of presets) {
         const g = p.group || "Presets";
-        if (!groups.has(g)) groups.set(g, []);
-        groups.get(g).push(p);
+        if (!presetGroups.has(g)) presetGroups.set(g, []);
+        presetGroups.get(g).push(p);
       }
-      for (const [groupName, items] of groups) {
-        const heading = document.createElement("h3");
-        heading.className = "group-heading";
-        heading.textContent = groupName;
-        container.appendChild(heading);
-        for (const p of items) {
-          const card = document.createElement("div");
-          card.className = "card";
-          const metaParts = [];
-          if (p.baseISO) metaParts.push("ISO " + p.baseISO);
-          if (p.whiteBalanceNote) metaParts.push(p.whiteBalanceNote);
-          card.innerHTML = `
-            <div class="card-head">
-              <span class="name">${p.name}</span>
-              <span class="look">${p.preset}</span>
-            </div>
-            ${metaParts.length ? `<div class="meta">${metaParts.join(" &middot; ")}</div>` : ""}
-            <div class="notes">${p.notes}</div>
-            <button class="small primary">Download to Camera</button>
-          `;
-          card.querySelector("button").addEventListener("click", () => pushPreset(p));
-          container.appendChild(card);
-        }
+      activeGroup = presetGroups.keys().next().value;
+      renderPresetTabs();
+      renderPresetCards();
+    }
+
+    function renderPresetTabs() {
+      const tabsEl = document.getElementById("presetTabs");
+      tabsEl.innerHTML = "";
+      for (const groupName of presetGroups.keys()) {
+        const btn = document.createElement("button");
+        btn.textContent = groupTabLabels[groupName] || groupName;
+        btn.className = groupName === activeGroup ? "active" : "";
+        btn.addEventListener("click", () => {
+          activeGroup = groupName;
+          renderPresetTabs();
+          renderPresetCards();
+        });
+        tabsEl.appendChild(btn);
+      }
+    }
+
+    function renderPresetCards() {
+      const container = document.getElementById("presets");
+      container.innerHTML = "";
+      const items = presetGroups.get(activeGroup) || [];
+      for (const p of items) {
+        const card = document.createElement("div");
+        card.className = "card";
+        const metaParts = [];
+        if (p.baseISO) metaParts.push("ISO " + p.baseISO);
+        if (p.whiteBalanceNote) metaParts.push(p.whiteBalanceNote);
+        card.innerHTML = `
+          <div class="card-head">
+            <span class="name">${p.name}</span>
+            <span class="look">${p.preset}</span>
+          </div>
+          ${metaParts.length ? `<div class="meta">${metaParts.join(" &middot; ")}</div>` : ""}
+          <div class="notes">${p.notes}</div>
+          <button class="small primary">Download to Camera</button>
+        `;
+        card.querySelector("button").addEventListener("click", () => pushPreset(p));
+        container.appendChild(card);
       }
     }
 
