@@ -70,6 +70,17 @@
   </div>
 
   <script>
+    // Sony's own 2-letter Creative Look codes, mapped to their real names --
+    // used both for the Custom tab's preset dropdown and for the "look"
+    // badge on preset cards, so nobody has to know what "VV2" means.
+    const presetNames = {
+      "ST": "Standard", "PT": "Portrait", "NT": "Neutral", "VV": "Vivid",
+      "VV2": "Vivid 2", "FL": "Film", "IN": "Instant", "SH": "Soft Highkey",
+      "BW": "Black & White", "SE": "Sepia",
+      "CS1": "Custom 1", "CS2": "Custom 2", "CS3": "Custom 3",
+      "CS4": "Custom 4", "CS5": "Custom 5", "CS6": "Custom 6",
+    };
+
     const fields = [
       ["contrast", "Contrast", -9, 9],
       ["highlights", "Highlights", -9, 9],
@@ -288,9 +299,22 @@
           <div class="row">
             <label>Preset</label>
             <select id="preset" onchange="pushRecipe()">
-              <option>ST</option><option>PT</option><option>NT</option><option>VV</option><option>VV2</option>
-              <option>FL</option><option>IN</option><option>SH</option><option>BW</option><option>SE</option>
-              <option>CS1</option><option>CS2</option><option>CS3</option><option>CS4</option><option>CS5</option><option>CS6</option>
+              <option value="ST">Standard</option>
+              <option value="PT">Portrait</option>
+              <option value="NT">Neutral</option>
+              <option value="VV">Vivid</option>
+              <option value="VV2">Vivid 2</option>
+              <option value="FL">Film</option>
+              <option value="IN">Instant</option>
+              <option value="SH">Soft Highkey</option>
+              <option value="BW">Black &amp; White</option>
+              <option value="SE">Sepia</option>
+              <option value="CS1">Custom 1</option>
+              <option value="CS2">Custom 2</option>
+              <option value="CS3">Custom 3</option>
+              <option value="CS4">Custom 4</option>
+              <option value="CS5">Custom 5</option>
+              <option value="CS6">Custom 6</option>
             </select>
           </div>
           <div id="sliders"></div>
@@ -364,7 +388,7 @@
         card.innerHTML = `
           <div class="card-head">
             <span class="name">${p.name}</span>
-            <span class="look">${p.preset}</span>
+            <span class="look">${presetNames[p.preset] || p.preset}</span>
           </div>
           ${metaParts.length ? `<div class="meta">${metaParts.join(" &middot; ")}</div>` : ""}
           <div class="notes">${p.notes}</div>
