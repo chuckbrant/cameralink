@@ -149,14 +149,8 @@
       }
     }
 
-    async function connectNetwork() {
+    async function doConnectNetwork(body) {
       document.getElementById("statusText").textContent = "Connecting...";
-      const body = {
-        ip: document.getElementById("netIp").value,
-        mac: document.getElementById("netMac").value,
-        userId: document.getElementById("netUser").value,
-        password: document.getElementById("netPass").value,
-      };
       const r = await api("/api/connect/network", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -165,6 +159,28 @@
       if (!r.success) alert("Connect failed: " + r.error);
       await pollStatus();
       if (r.success) await refresh();
+    }
+
+    async function connectNetwork() {
+      await doConnectNetwork({
+        ip: document.getElementById("netIp").value,
+        mac: document.getElementById("netMac").value,
+        userId: document.getElementById("netUser").value,
+        password: document.getElementById("netPass").value,
+      });
+    }
+
+    // One-tap connect for Chuck's own a7R V -- static IP on CameraBrdg, so
+    // no network search needed, and the Remote Shoot Function pairing
+    // credentials are stable (confirmed not single-use/regenerating), so
+    // there's no reason to make him retype them every time.
+    async function connectChucksA7RV() {
+      await doConnectNetwork({
+        ip: "10.42.0.50",
+        mac: "50:26:EF:B7:F4:B5",
+        userId: "emF9mA",
+        password: "6TgT2xQW",
+      });
     }
 
     // The API's read-side white balance names (e.g. "Color Temp/Filter",
@@ -294,6 +310,7 @@
       if (activeTab === SETUP_TAB) {
         container.innerHTML = `
           <div class="actions">
+            <button class="primary" onclick="connectChucksA7RV()">Connect (Chuck's A7rV)</button>
             <button onclick="toggleNetForm()">Connect (Network)</button>
             <button onclick="refresh()">Refresh</button>
           </div>
