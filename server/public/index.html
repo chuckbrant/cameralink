@@ -135,6 +135,20 @@
       document.getElementById("netform").classList.toggle("open");
     }
 
+    async function findCameraIp() {
+      const mac = document.getElementById("netMac").value.trim();
+      const statusEl = document.getElementById("findStatus");
+      if (!mac) { statusEl.textContent = "Enter a MAC address first."; return; }
+      statusEl.textContent = "Searching CameraBrdg...";
+      const r = await api("/api/network/find?mac=" + encodeURIComponent(mac));
+      if (r.found) {
+        document.getElementById("netIp").value = r.ip;
+        statusEl.textContent = "Found at " + r.ip;
+      } else {
+        statusEl.textContent = "Not found -- is the camera joined to CameraBrdg?";
+      }
+    }
+
     async function connectNetwork() {
       document.getElementById("statusText").textContent = "Connecting...";
       const body = {
@@ -259,7 +273,7 @@
     function renderTabs() {
       const tabsEl = document.getElementById("mainTabs");
       tabsEl.innerHTML = "";
-      const tabKeys = [SETUP_TAB, CUSTOM_TAB, ...presetGroups.keys()];
+      const tabKeys = [CUSTOM_TAB, ...presetGroups.keys(), SETUP_TAB];
       for (const key of tabKeys) {
         const btn = document.createElement("button");
         btn.textContent = key === SETUP_TAB ? "Setup" : key === CUSTOM_TAB ? "Custom" : (groupTabLabels[key] || key);
@@ -285,7 +299,11 @@
           </div>
           <div class="netform" id="netform">
             <input id="netIp" placeholder="Camera IP address, e.g. 10.42.0.50">
-            <input id="netMac" placeholder="Camera MAC address, e.g. aa:bb:cc:dd:ee:ff">
+            <div class="row" style="margin:0;">
+              <input id="netMac" placeholder="Camera MAC address, e.g. aa:bb:cc:dd:ee:ff" value="50:26:EF:B7:F4:B5" style="flex:1;">
+              <button class="small" onclick="findCameraIp()">Find on Network</button>
+            </div>
+            <span id="findStatus" class="wb"></span>
             <input id="netUser" placeholder="User ID (from camera's Access Authen. Info screen)">
             <input id="netPass" placeholder="Password" type="password">
             <button class="primary" onclick="connectNetwork()">Connect</button>

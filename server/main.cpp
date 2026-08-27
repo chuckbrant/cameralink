@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <fstream>
 #include <future>
 #include <iostream>
 #include <mutex>
@@ -940,6 +941,49 @@ std::string writeRecipeJson(const std::string& body) {
 }
 
 // ---------------------------------------------------------------------
+// Network camera search -- looks up a camera's IP by MAC address on the
+// Pi's own CameraBrdg access point, so the user doesn't have to hunt for
+// it manually (previously the only way was cat'ing the dnsmasq lease
+// file over SSH, per docs/CAMERA_SETUP.md).
+// ---------------------------------------------------------------------
+
+std::string normalizeMac(std::string mac) {
+    std::transform(mac.begin(), mac.end(), mac.begin(), ::tolower);
+    return mac;
+}
+
+std::string findIpByMac(const std::string& macNorm) {
+    // Primary source: the AP's own DHCP lease file -- authoritative for
+    // any camera that got its address via DHCP (the normal case). Needs
+    // sudo to read; cbrant has passwordless sudo on the Pi already.
+    FILE* pipe = popen("sudo cat /var/lib/NetworkManager/dnsmasq-wlan0.leases 2>/dev/null", "r");
+    if (pipe) {
+        char line[512];
+        while (fgets(line, sizeof(line), pipe)) {
+            std::istringstream iss(line);
+            std::string epoch, mac, ip;
+            iss >> epoch >> mac >> ip;
+            if (normalizeMac(mac) == macNorm) { pclose(pipe); return ip; }
+        }
+        pclose(pipe);
+    }
+
+    // Fallback: the kernel's own ARP table -- catches a camera configured
+    // with a static IP (never requested a DHCP lease) as long as the Pi
+    // has exchanged at least one packet with it recently.
+    std::ifstream arp("/proc/net/arp");
+    std::string line;
+    std::getline(arp, line); // header row
+    while (std::getline(arp, line)) {
+        std::istringstream iss(line);
+        std::string ip, hwType, flags, mac;
+        iss >> ip >> hwType >> flags >> mac;
+        if (normalizeMac(mac) == macNorm) return ip;
+    }
+    return "";
+}
+
+// ---------------------------------------------------------------------
 // HTTP server
 // ---------------------------------------------------------------------
 
@@ -955,6 +999,15 @@ int main() {
         std::ostringstream json;
         json << "{\"connected\":" << (g_connected ? "true" : "false")
              << ",\"model\":\"" << jsonEscape(g_modelName) << "\"}";
+        res.set_content(json.str(), "application/json");
+    });
+
+    svr.Get("/api/network/find", [](const httplib::Request& req, httplib::Response& res) {
+        std::string mac = normalizeMac(req.get_param_value("mac"));
+        std::string ip = findIpByMac(mac);
+        std::ostringstream json;
+        json << "{\"found\":" << (ip.empty() ? "false" : "true")
+             << ",\"ip\":\"" << jsonEscape(ip) << "\"}";
         res.set_content(json.str(), "application/json");
     });
 
