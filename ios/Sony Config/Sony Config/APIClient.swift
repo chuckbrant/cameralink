@@ -31,10 +31,10 @@ final class APIClient {
         return url
     }
 
-    private func send(url: URL, method: String, body: Data?) async throws -> Data {
+    private func send(url: URL, method: String, body: Data?, timeout: TimeInterval) async throws -> Data {
         var req = URLRequest(url: url)
         req.httpMethod = method
-        req.timeoutInterval = 10
+        req.timeoutInterval = timeout
         if let body {
             req.httpBody = body
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -52,22 +52,22 @@ final class APIClient {
         }
     }
 
-    private func get<T: Decodable>(_ path: String) async throws -> T {
+    private func get<T: Decodable>(_ path: String, timeout: TimeInterval = 10) async throws -> T {
         let url = try makeURL(path)
-        let data = try await send(url: url, method: "GET", body: nil)
+        let data = try await send(url: url, method: "GET", body: nil, timeout: timeout)
         do { return try JSONDecoder().decode(T.self, from: data) } catch { throw APIError.decoding(error) }
     }
 
-    private func post<Body: Encodable, T: Decodable>(_ path: String, body: Body) async throws -> T {
+    private func post<Body: Encodable, T: Decodable>(_ path: String, body: Body, timeout: TimeInterval = 10) async throws -> T {
         let url = try makeURL(path)
         let data = try JSONEncoder().encode(body)
-        let respData = try await send(url: url, method: "POST", body: data)
+        let respData = try await send(url: url, method: "POST", body: data, timeout: timeout)
         do { return try JSONDecoder().decode(T.self, from: respData) } catch { throw APIError.decoding(error) }
     }
 
-    private func postEmpty<T: Decodable>(_ path: String) async throws -> T {
+    private func postEmpty<T: Decodable>(_ path: String, timeout: TimeInterval = 10) async throws -> T {
         let url = try makeURL(path)
-        let respData = try await send(url: url, method: "POST", body: Data("{}".utf8))
+        let respData = try await send(url: url, method: "POST", body: Data("{}".utf8), timeout: timeout)
         do { return try JSONDecoder().decode(T.self, from: respData) } catch { throw APIError.decoding(error) }
     }
 
@@ -110,12 +110,19 @@ final class APIClient {
 
     // MARK: - Connection
 
+    // The camera-pairing handshake (Wi-Fi association + SSH fingerprint
+    // retrieval on the Pi's side) can legitimately take much longer than
+    // this client's normal 10s default, especially right as the camera is
+    // still settling onto the network -- the web UI's plain fetch() has no
+    // timeout at all and just waits, which is why it can succeed at a
+    // moment this app would otherwise give up on with a spurious timeout
+    // error. Give these two calls a generous 45s instead.
     struct ConnectNetworkBody: Encodable { var ip: String; var mac: String; var userId: String; var password: String }
     func connectNetwork(ip: String, mac: String, userId: String, password: String) async throws -> SimpleSuccess {
-        try await post("/api/connect/network", body: ConnectNetworkBody(ip: ip, mac: mac, userId: userId, password: password))
+        try await post("/api/connect/network", body: ConnectNetworkBody(ip: ip, mac: mac, userId: userId, password: password), timeout: 45)
     }
 
-    func connectUSB() async throws -> SimpleSuccess { try await postEmpty("/api/connect/usb") }
+    func connectUSB() async throws -> SimpleSuccess { try await postEmpty("/api/connect/usb", timeout: 45) }
     func disconnect() async throws -> SimpleSuccess { try await postEmpty("/api/disconnect") }
 
     // MARK: - Quick Connect (saved camera profiles)

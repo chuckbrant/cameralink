@@ -1,8 +1,10 @@
 # Sony Config (iOS/iPadOS app)
 
+[View on GitHub](https://github.com/chuckbrant/cameralink/tree/master/ios/Sony%20Config)
+
 A native iPad app that talks to the exact same REST API as
 `server/public/index.html` (the bundled web frontend) — same four tabs
-(Custom / Film Recipes / Saved Recipes / Setup), same endpoints, same
+(Custom / Saved Recipes / Film Recipes / Setup), same endpoints, same
 recipe fields. It's a second client of the cameralink server, not a
 replacement for it; the server (and the camera connection logic) is
 unchanged.
@@ -28,10 +30,13 @@ xcodegen generate
 open "Sony Config.xcodeproj"
 ```
 
-Then build and run (⌘R) targeting an iPad simulator. No code signing is
-required for simulator builds (`CODE_SIGNING_ALLOWED: NO` in
-`project.yml`); you'll need to set a Development Team in the project
-settings before running on a physical device.
+Then build and run (⌘R) targeting an iPad simulator or a physical iPad.
+`project.yml` sets `CODE_SIGN_STYLE: Automatic` with a `DEVELOPMENT_TEAM`
+already filled in for on-device builds; change that to your own Team ID
+(found via `security find-certificate -c "Apple Development: <Your Name>"
+-p | openssl x509 -noout -subject` — it's the `OU=` field, not the ID in
+the certificate's display name) if it doesn't match your signing
+identity.
 
 ## Configuring the server address
 
@@ -44,6 +49,24 @@ a non-Pi test machine from [docs/INSTALL.md](../../docs/INSTALL.md), etc.).
 App Transport Security is relaxed (`NSAllowsArbitraryLoads`) since the
 server is plain HTTP by design (a local-network-only tool, no public
 internet exposure) — see `project.yml`'s `Info.plist` properties.
+
+Setup also has two one-tap **Quick Connect** buttons -- "Network"
+(`http://10.42.0.1:8080`, the Pi's Wi-Fi access point) and "USB Gadget"
+(`http://192.168.7.2:8080`, the Pi's USB gadget address) -- that switch
+the server address and then connect using whatever camera profile is
+already saved on that server. No camera credentials are ever hardcoded
+in this app; they're fetched fresh from the Pi each time.
+
+## Two connections, shown separately
+
+The header at the top of every tab shows two independent dots: whether
+*this device* can reach the Pi's server at all (`AppState.serverReachable`,
+set by `GET /api/status` succeeding or failing at the transport level),
+and whether the *camera* is paired to the Pi (`AppState.connected`, from
+that same response's `connected` field). The web UI only has one status
+dot and can't tell these apart -- a dead USB cable and a disconnected
+camera look identical there. Diagnosing which one is actually down
+determines the fix (reconnect the cable/Wi-Fi vs. reconnect the camera).
 
 ## Project structure
 
@@ -72,12 +95,22 @@ updated to match.
 
 ## Status
 
-First working version: builds clean (no warnings), and has been verified
-live against the real cameralink server and a physical Sony a7R V from
-the iPad simulator — all four tabs correctly load and display live camera
-state, presets, and saved recipes over the network. Not yet tested on a
-physical iPad (needs a Development Team ID for device code signing) or
-exercised through every interactive control (e.g. dragging the tone curve
-points, tapping through the WB grid) — those share source-level logic
-with what's been verified, but haven't each been individually
-click-tested end-to-end.
+Builds clean (no warnings) and confirmed working end-to-end on **both**
+the iOS Simulator and a physical iPad, connected to the cameralink server
+over both transports (the Pi's Wi-Fi access point and its USB gadget
+cable) and paired to a real Sony a7R V. All four tabs correctly load and
+display live camera state, presets, and saved recipes over the network,
+including the Tone Curve and White Balance grid widgets.
+
+A real-world timing issue was found and fixed along the way:
+`URLSession`'s default request timeout (10s) was too aggressive for
+`/api/connect/network` specifically -- the camera-pairing handshake can
+legitimately take longer than that right as the camera is still settling
+onto Wi-Fi, and the web UI's plain `fetch()` (no timeout at all) would
+succeed at exactly the moment this app gave up early. Connect calls now
+get a 45s timeout instead of the normal 10s default.
+
+Not yet exercised through every interactive control individually (e.g.
+dragging the tone curve points, tapping through the WB grid on-device) —
+those share source-level logic with what's been verified, but haven't
+each been individually click-tested end-to-end on a physical iPad.

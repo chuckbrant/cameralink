@@ -118,9 +118,10 @@ struct ToneCurveView: View {
                         }
                 )
             }
-            .frame(height: 220)
+            .frame(width: 210, height: 210)
             .background(Color.black)
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .frame(maxWidth: .infinity)
 
             HStack {
                 Text("Blacks / Shadows").font(.caption).foregroundStyle(.secondary)
