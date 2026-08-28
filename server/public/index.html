@@ -145,11 +145,15 @@
         ctx.beginPath(); ctx.moveTo(0, i * cell); ctx.lineTo(size, i * cell); ctx.stroke();
       }
 
-      const centerIdx = (WB_GRID_N - 1) / 2;
+      // With an odd cell count (15), the true center falls in the middle
+      // of the center cell, not on a cell boundary -- offset by half a
+      // cell so this line actually passes through the neutral marker
+      // position instead of sitting one half-cell to the left/above it.
+      const centerPos = ((WB_GRID_N - 1) / 2 + 0.5) * cell;
       ctx.strokeStyle = "rgba(255,255,255,0.5)";
       ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(centerIdx * cell, 0); ctx.lineTo(centerIdx * cell, size); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, centerIdx * cell); ctx.lineTo(size, centerIdx * cell); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(centerPos, 0); ctx.lineTo(centerPos, size); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, centerPos); ctx.lineTo(size, centerPos); ctx.stroke();
 
       // Marker: col grows with A-B (B=left, A=right), row grows downward
       // as G-M goes from G (top) to M (bottom).
