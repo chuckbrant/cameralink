@@ -399,11 +399,21 @@
     // Custom tab is rendered (that element only exists while that tab is
     // active), not just once at page load like it used to when this section
     // was always on the page.
+    // Saturation is color/tone-related and stays under the Tone Curve
+    // section; Sharpness/Sharpness Range/Clarity are texture/detail
+    // controls, unrelated to tone, so they render into a separate
+    // "Detail" section instead.
     function buildSliders() {
-      const slidersEl = document.getElementById("sliders");
-      if (!slidersEl) return;
-      slidersEl.innerHTML = "";
+      const sliderTargets = { sharpness: "detailSliders", sharpnessRange: "detailSliders", clarity: "detailSliders" };
+      const containers = {};
       for (const [key, label, min, max] of fields) {
+        const targetId = sliderTargets[key] || "sliders";
+        if (!containers[targetId]) {
+          const el = document.getElementById(targetId);
+          if (!el) continue;
+          el.innerHTML = "";
+          containers[targetId] = el;
+        }
         const row = document.createElement("div");
         row.className = "row";
         row.innerHTML = `
@@ -411,7 +421,7 @@
           <input type="range" id="${key}" min="${min}" max="${max}" value="0">
           <span class="val" id="${key}Val">0</span>
         `;
-        slidersEl.appendChild(row);
+        containers[targetId].appendChild(row);
         const input = row.querySelector("input");
         const val = row.querySelector(".val");
         input.addEventListener("input", () => { val.textContent = input.value; });
@@ -692,6 +702,9 @@
           </div>
 
           <div id="sliders"></div>
+
+          <h3 class="group-heading">Detail</h3>
+          <div id="detailSliders"></div>
 
           <h3 class="group-heading">White Balance</h3>
           <div class="row">
