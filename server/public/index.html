@@ -53,6 +53,7 @@
   .tc-label { font-size: 10px; color: #888; }
   .tone-curve-readout { text-align: center; font-size: 12px; color: #aaa; margin-top: 10px; }
   .tone-curve-hint { font-size: 11px; color: #777; margin-top: 8px; line-height: 1.4; }
+  .tone-curve-presets { margin-top: 12px; }
   .netform { display: none; flex-direction: column; gap: 8px; margin-top: 10px; }
   .netform.open { display: flex; }
   .netform input { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
@@ -255,6 +256,16 @@
       curveState.contrast = parseInt(document.getElementById("contrastSlider").value, 10);
       drawToneCurve();
       updateToneCurveReadout();
+    }
+
+    // Quick-option buttons matching the standard "Basic Curves" cheat
+    // sheet (increase contrast / lifted shadows / increase highlights /
+    // increase shadows), plus a reset back to neutral.
+    function applyToneCurvePreset(contrast, highlights, shadows, fade) {
+      curveState = { contrast, highlights, shadows, fade };
+      drawToneCurve();
+      updateToneCurveReadout();
+      pushRecipe();
     }
 
     // Replicates the camera's own White Balance Adjustment grid: a 15x15
@@ -671,6 +682,13 @@
               <input type="range" id="contrastSlider" min="-9" max="9" value="0" oninput="onContrastSliderInput()" onchange="pushRecipe()">
             </div>
             <div class="tone-curve-hint">Drag the white dots on the curve to adjust Blacks/Fade, Shadows, and Highlights. Contrast bends the whole curve.</div>
+            <div class="actions tone-curve-presets">
+              <button class="small" onclick="applyToneCurvePreset(6,0,0,0)">Increase Contrast</button>
+              <button class="small" onclick="applyToneCurvePreset(0,0,0,6)">Lifted Shadows</button>
+              <button class="small" onclick="applyToneCurvePreset(0,6,0,0)">Increase Highlights</button>
+              <button class="small" onclick="applyToneCurvePreset(0,0,6,0)">Increase Shadows</button>
+              <button class="small danger" onclick="applyToneCurvePreset(0,0,0,0)">Reset</button>
+            </div>
           </div>
 
           <div id="sliders"></div>
