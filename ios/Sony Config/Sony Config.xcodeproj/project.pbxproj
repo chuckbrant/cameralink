@@ -1,0 +1,357 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0CFDA5805AB1477E7FE6F145 /* ToneCurveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F21EF78B9D8AD2D270AF6B29 /* ToneCurveView.swift */; };
+		103BC7D4116C9467AC30B6ED /* WhiteBalanceGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC2A1AAFA5AE64508890579 /* WhiteBalanceGridView.swift */; };
+		143FC6BBB3C039B312546424 /* CustomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9362883B347538D071B100E0 /* CustomView.swift */; };
+		4589E80479223DFC6F31A0D7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7E9C73F7E474AB5091528E8B /* Assets.xcassets */; };
+		45E0A2DC567C9F1B55CB33E0 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C3FE0F519303C11A8EE273E /* APIClient.swift */; };
+		79979E1ADBE0F6F270B00B31 /* SavedRecipesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39C3DFCDEE19BB65ABF64803 /* SavedRecipesView.swift */; };
+		7B1503FD953A92C6AF0FC18A /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA9564DA0054B34E273833AD /* SetupView.swift */; };
+		8E9D951F390D2CD24FD30AFF /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44ABA66A8650F710E9344BD3 /* RootView.swift */; };
+		91E90FC40DCE3D81AF500D7C /* SonyConfigApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA7882D851A62A62BDE44FF6 /* SonyConfigApp.swift */; };
+		B4E510233C152710897A5F05 /* FilmRecipesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FB4C8C09AF4DF5C0D68387 /* FilmRecipesView.swift */; };
+		B807182C7B4657A8EFA2CE34 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66DE1DA34D9B317F7FCD9A34 /* AppState.swift */; };
+		F90B55A56ED0823D7B584ACF /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 933C404CEB79F73C04FF850C /* Models.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		01F45C694DF2FD2D819370CD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		38FB4C8C09AF4DF5C0D68387 /* FilmRecipesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilmRecipesView.swift; sourceTree = "<group>"; };
+		39C3DFCDEE19BB65ABF64803 /* SavedRecipesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedRecipesView.swift; sourceTree = "<group>"; };
+		44ABA66A8650F710E9344BD3 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		5BC2A1AAFA5AE64508890579 /* WhiteBalanceGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhiteBalanceGridView.swift; sourceTree = "<group>"; };
+		66DE1DA34D9B317F7FCD9A34 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		7E9C73F7E474AB5091528E8B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8C3FE0F519303C11A8EE273E /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		933C404CEB79F73C04FF850C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		9362883B347538D071B100E0 /* CustomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomView.swift; sourceTree = "<group>"; };
+		BA9564DA0054B34E273833AD /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
+		CA7882D851A62A62BDE44FF6 /* SonyConfigApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SonyConfigApp.swift; sourceTree = "<group>"; };
+		E97301F06F9C2C6E6CD79CA5 /* Sony Config.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Sony Config.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F21EF78B9D8AD2D270AF6B29 /* ToneCurveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToneCurveView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		17D52B3776AD6BBBFABBD117 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E97301F06F9C2C6E6CD79CA5 /* Sony Config.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5531869622161EA0BC295512 = {
+			isa = PBXGroup;
+			children = (
+				59F9A3ED676DDC3D8B0759CD /* Sony Config */,
+				17D52B3776AD6BBBFABBD117 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		59F9A3ED676DDC3D8B0759CD /* Sony Config */ = {
+			isa = PBXGroup;
+			children = (
+				8C3FE0F519303C11A8EE273E /* APIClient.swift */,
+				66DE1DA34D9B317F7FCD9A34 /* AppState.swift */,
+				7E9C73F7E474AB5091528E8B /* Assets.xcassets */,
+				01F45C694DF2FD2D819370CD /* Info.plist */,
+				933C404CEB79F73C04FF850C /* Models.swift */,
+				CA7882D851A62A62BDE44FF6 /* SonyConfigApp.swift */,
+				72C91AA76EC1FDE3CFB6EF0D /* Views */,
+			);
+			path = "Sony Config";
+			sourceTree = "<group>";
+		};
+		72C91AA76EC1FDE3CFB6EF0D /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				9362883B347538D071B100E0 /* CustomView.swift */,
+				38FB4C8C09AF4DF5C0D68387 /* FilmRecipesView.swift */,
+				44ABA66A8650F710E9344BD3 /* RootView.swift */,
+				39C3DFCDEE19BB65ABF64803 /* SavedRecipesView.swift */,
+				BA9564DA0054B34E273833AD /* SetupView.swift */,
+				F21EF78B9D8AD2D270AF6B29 /* ToneCurveView.swift */,
+				5BC2A1AAFA5AE64508890579 /* WhiteBalanceGridView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4E8E6278D345C6BD0AD2454A /* Sony Config */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E64A4E7610698471496FAFB7 /* Build configuration list for PBXNativeTarget "Sony Config" */;
+			buildPhases = (
+				8BA6EC72442128B36A98F855 /* Sources */,
+				1586E2C1730A286058158707 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Sony Config";
+			packageProductDependencies = (
+			);
+			productName = "Sony Config";
+			productReference = E97301F06F9C2C6E6CD79CA5 /* Sony Config.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E3918AFDFB241623B9069A87 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					4E8E6278D345C6BD0AD2454A = {
+						DevelopmentTeam = DW433867N7;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = F729A6A17183BACE5171FDF3 /* Build configuration list for PBXProject "Sony Config" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 5531869622161EA0BC295512;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 17D52B3776AD6BBBFABBD117 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				4E8E6278D345C6BD0AD2454A /* Sony Config */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1586E2C1730A286058158707 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4589E80479223DFC6F31A0D7 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8BA6EC72442128B36A98F855 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				45E0A2DC567C9F1B55CB33E0 /* APIClient.swift in Sources */,
+				B807182C7B4657A8EFA2CE34 /* AppState.swift in Sources */,
+				143FC6BBB3C039B312546424 /* CustomView.swift in Sources */,
+				B4E510233C152710897A5F05 /* FilmRecipesView.swift in Sources */,
+				F90B55A56ED0823D7B584ACF /* Models.swift in Sources */,
+				8E9D951F390D2CD24FD30AFF /* RootView.swift in Sources */,
+				79979E1ADBE0F6F270B00B31 /* SavedRecipesView.swift in Sources */,
+				7B1503FD953A92C6AF0FC18A /* SetupView.swift in Sources */,
+				91E90FC40DCE3D81AF500D7C /* SonyConfigApp.swift in Sources */,
+				0CFDA5805AB1477E7FE6F145 /* ToneCurveView.swift in Sources */,
+				103BC7D4116C9467AC30B6ED /* WhiteBalanceGridView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		44A085F7FC1FB18F880CDB45 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = DW433867N7;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Debug;
+		};
+		5C450DE28284C1BCFBAB2F98 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = "Sony Config/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.chuckbrant.SonyConfig;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5E8D8D5FA48BEB19EADEA9CA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = DW433867N7;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Release;
+		};
+		646C5F661A4BA2A3B7DD280D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = "Sony Config/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.chuckbrant.SonyConfig;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		E64A4E7610698471496FAFB7 /* Build configuration list for PBXNativeTarget "Sony Config" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5C450DE28284C1BCFBAB2F98 /* Debug */,
+				646C5F661A4BA2A3B7DD280D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F729A6A17183BACE5171FDF3 /* Build configuration list for PBXProject "Sony Config" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				44A085F7FC1FB18F880CDB45 /* Debug */,
+				5E8D8D5FA48BEB19EADEA9CA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E3918AFDFB241623B9069A87 /* Project object */;
+}

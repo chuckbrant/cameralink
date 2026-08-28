@@ -701,7 +701,14 @@ std::string connectNetwork(const std::string& ip, const std::string& mac, const 
     SDK::CrError fpErr = SDK::GetFingerprint(cameraInfo, fpBuf, &fpSize);
     if (fpErr) {
         cameraInfo->Release();
-        char buf[96]; snprintf(buf, sizeof(buf), "GetFingerprint failed 0x%x (is USB still plugged in?)", fpErr);
+        // 0x8218 = CrError_Connect_SSH_GetFingerprintFailed. Despite an
+        // earlier guess baked into this message, this has nothing to do
+        // with USB -- it means the camera's SSH host key fingerprint
+        // couldn't be retrieved, most often because Remote Shoot Function
+        // was toggled off/on since the last pairing (which regenerates the
+        // camera's User/Password/Fingerprint -- see docs/CAMERA_SETUP.md)
+        // and the credentials being used here are now stale.
+        char buf[160]; snprintf(buf, sizeof(buf), "GetFingerprint failed 0x%x (stale pairing? re-check the camera's Access Authen. Info screen -- credentials regenerate when Remote Shoot Function is toggled off/on)", fpErr);
         return buf;
     }
 

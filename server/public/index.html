@@ -61,9 +61,19 @@
   .confirm { display: none; margin-top: 10px; font-size: 13px; color: #999; }
   .confirm.open { display: block; }
   .confirm .actions { display: flex; gap: 10px; margin-top: 8px; }
+  .toast {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-20px);
+    background: rgba(40,40,40,0.95); border: 1px solid #444; border-radius: 999px;
+    padding: 10px 18px; font-size: 13px; color: #eee; display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease; z-index: 1000; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast .toast-check { color: #4caf50; font-weight: 700; }
 </style>
 </head>
 <body>
+  <div class="toast" id="toast"><span class="toast-check">&#10003;</span><span id="toastText"></span></div>
   <h1>cameralink</h1>
   <div class="status">
     <div class="dot" id="dot"></div>
@@ -413,6 +423,19 @@
       return res.json();
     }
 
+    // A brief, auto-dismissing confirmation banner ("Saved to camera",
+    // "Loaded from camera", ...) -- for successful actions, complementing
+    // the existing failure alert()s rather than replacing the blocking
+    // alert()s some actions still use for their own success message.
+    let toastTimer = null;
+    function showToast(message) {
+      const el = document.getElementById("toast");
+      document.getElementById("toastText").textContent = message;
+      el.classList.add("show");
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove("show"), 2000);
+    }
+
     function setStatus(connected, model) {
       document.getElementById("dot").classList.toggle("on", connected);
       document.getElementById("statusText").textContent = connected ? model : "Not connected";
@@ -453,6 +476,7 @@
       if (r.success) {
         await refresh();
         loadCameraInfo();
+        showToast("Connected to " + document.getElementById("statusText").textContent);
       }
     }
 
@@ -497,6 +521,7 @@
       });
       if (!r.success) { alert("Save failed: " + r.error); return; }
       loadSavedCameras();
+      showToast('Saved Quick Connect "' + name + '"');
     }
 
     // Camera info (battery, media slots, lens, serial) -- only meaningful
@@ -586,6 +611,27 @@
       applyRecipeToCustomForm();
     }
 
+    // Wraps refresh() with a success toast -- used only by the Custom tab's
+    // explicit "Load from Camera" button, not refresh()'s other internal
+    // callers (tab-render, post-connect), which would otherwise spam a
+    // toast on every tab switch.
+    async function refreshWithToast() {
+      await refresh();
+      showToast("Loaded from camera");
+    }
+
+    // Setup tab's "Refresh" button -- refreshes everything actually visible
+    // there (connection status, Camera/Lens/Memory info), plus pre-loads
+    // the Custom tab's cached recipe so it's current when you switch to it.
+    // refresh() alone (as used above) only does the latter, which used to
+    // leave this button doing nothing visible on the Setup tab itself.
+    async function setupRefresh() {
+      await pollStatus();
+      await loadCameraInfo();
+      await refresh();
+      showToast("Refreshed");
+    }
+
     // Reads the Custom tab's current form/UI state into a plain recipe
     // object -- shared by the "Save" (push to camera) and "Save Recipe"
     // (write to a Saved Recipes slot) actions so they can't drift apart.
@@ -620,6 +666,7 @@
         body: JSON.stringify(body),
       });
       if (!r.success) alert("Push failed: " + r.error);
+      else showToast("Saved to camera");
     }
 
     async function saveAsNewRecipe() {
@@ -633,7 +680,7 @@
         body: JSON.stringify({ name, recipe: body }),
       });
       if (!r.success) { alert("Save failed: " + r.error); return; }
-      alert('Saved to slot ' + (r.slot + 1) + '.');
+      showToast('Saved "' + name + '" to slot ' + (r.slot + 1));
     }
 
     async function updateEditingSlot() {
@@ -648,7 +695,7 @@
         body: JSON.stringify({ slot: editingRecipeSlot, name, recipe: body }),
       });
       if (!r.success) { alert("Update failed: " + r.error); return; }
-      alert('Updated slot ' + (editingRecipeSlot + 1) + '.');
+      showToast('Updated slot ' + (editingRecipeSlot + 1));
       editingRecipeSlot = null;
       activeTab = SAVED_RECIPES_TAB;
       renderTabs();
@@ -697,7 +744,7 @@
     function renderTabs() {
       const tabsEl = document.getElementById("mainTabs");
       tabsEl.innerHTML = "";
-      const tabKeys = [CUSTOM_TAB, ...presetGroups.keys(), SAVED_RECIPES_TAB, SETUP_TAB];
+      const tabKeys = [CUSTOM_TAB, SAVED_RECIPES_TAB, ...presetGroups.keys(), SETUP_TAB];
       for (const key of tabKeys) {
         const btn = document.createElement("button");
         btn.textContent = key === SETUP_TAB ? "Setup" : key === CUSTOM_TAB ? "Custom" : key === SAVED_RECIPES_TAB ? "Saved Recipes" : (groupTabLabels[key] || key);
@@ -720,7 +767,7 @@
           <div class="actions" id="savedCameras"></div>
           <div class="actions">
             <button onclick="toggleNetForm()">Connect (Network)</button>
-            <button onclick="refresh()">Refresh</button>
+            <button onclick="setupRefresh()">Refresh</button>
           </div>
           <div class="netform" id="netform">
             <input id="netIp" placeholder="Camera IP address, e.g. 10.42.0.50">
@@ -874,7 +921,7 @@
           </div>
 
           <div class="actions">
-            <button onclick="refresh()">Load from Camera</button>
+            <button onclick="refreshWithToast()">Load from Camera</button>
             <button class="primary" onclick="pushRecipe()">Save to Camera</button>
             ${editingRecipeSlot !== null
               ? `<button class="primary" onclick="updateEditingSlot()">Update Slot ${editingRecipeSlot + 1}</button>
@@ -920,7 +967,7 @@
           ${metaParts.length ? `<div class="meta">${metaParts.join(" &middot; ")}</div>` : ""}
           ${buildSpecsHtml(p)}
           <div class="notes">${p.notes}</div>
-          <button class="small primary">Download to Camera</button>
+          <button class="small primary">Save to Camera</button>
         `;
         card.querySelector("button").addEventListener("click", () => pushPreset(p));
         container.appendChild(card);
@@ -973,6 +1020,7 @@
       });
       if (!r.success) { alert("Push failed: " + r.error); return; }
       await refresh();
+      showToast('"' + p.name + '" sent to camera');
     }
 
     // Builds the same "ISO 400 · Color Filter A+1 G+1" style meta line the
@@ -1023,7 +1071,7 @@
             <div class="meta">${buildRecipeMetaLine(recipe)}</div>
             ${buildSpecsHtml(recipe)}
             <div class="actions">
-              <button class="small primary" data-act="load">Load to Camera</button>
+              <button class="small primary" data-act="load">Save to Camera</button>
               <button class="small" data-act="edit">Edit</button>
               <button class="small" data-act="rename">Rename</button>
               <button class="small" data-act="delete">Delete</button>
@@ -1052,7 +1100,7 @@
         body: JSON.stringify(entry.recipe),
       });
       if (!r.success) { alert("Push failed: " + r.error); return; }
-      alert('"' + entry.name + '" sent to camera.');
+      showToast('"' + entry.name + '" sent to camera');
     }
 
     function editSlotInCustomTab(slot, entry) {
@@ -1073,6 +1121,7 @@
       });
       if (!r.success) { alert("Rename failed: " + r.error); return; }
       await loadSavedRecipes();
+      showToast('Renamed to "' + name + '"');
     }
 
     async function deleteSlot(slot, name) {
@@ -1084,6 +1133,7 @@
       });
       if (!r.success) { alert("Delete failed: " + r.error); return; }
       await loadSavedRecipes();
+      showToast('Deleted "' + name + '"');
     }
 
     function toggleConfirm() {

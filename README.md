@@ -128,6 +128,31 @@ to be worth the extra surface area. Not pursuing it further.
 Setting this up on a fresh machine from scratch (including handing the
 job to an AI coding assistant): [docs/INSTALL.md](docs/INSTALL.md).
 
+## Two ways to use this
+
+The server is the source of truth; everything else is just a client of
+its REST API (see [API](#api) below). There are two of these clients
+today:
+
+1. **The bundled web UI** (`server/public/index.html`) — no install, no
+   build step. Point any browser at `http://<pi-ip>:8080` (or the Pi's
+   USB gadget address) and it's there. This is the reference
+   implementation and gets new features first.
+2. **Sony Config**, a native iPadOS app (`ios/Sony Config/`) — the same
+   four tabs (Custom / Saved Recipes / Film Recipes / Setup), the same
+   API, built with SwiftUI. Its Tone Curve and White Balance grid widgets
+   are direct ports of the web UI's canvas/drag math, not
+   reinterpretations. See [ios/Sony Config/README.md](ios/Sony%20Config/README.md)
+   for building and running it. It additionally distinguishes two
+   connections that look identical from the web UI's single status dot:
+   whether *this device* can reach the Pi's server at all (over Wi-Fi or
+   the USB gadget cable) versus whether the *camera* is paired to the Pi
+   — either can be down while the other is fine, and they need different
+   fixes.
+
+Both talk to the same running server — recipes, Saved Recipes, and Quick
+Connect profiles saved from one are immediately visible from the other.
+
 ## What the server needs to run
 
 There is **no separate web server** (no nginx, no Apache) — `main.cpp`
@@ -153,9 +178,9 @@ Pi-specific.
 ## API
 
 The backend is a plain JSON REST API — the bundled web page
-(`server/public/index.html`) is just one client of it. A native app would
-be a second client of the same endpoints (this is the intended path for
-the iPad app — see Status below).
+(`server/public/index.html`) and the native iOS app (`ios/Sony Config/`,
+see [Two ways to use this](#two-ways-to-use-this)) are both just clients
+of it.
 
 | Endpoint | What it does |
 |---|---|
@@ -181,18 +206,25 @@ the iPad app — see Status below).
 
 ```
 server/       C++ backend (cpp-httplib) + the bundled web frontend
+ios/          Sony Config -- the native iPadOS client (SwiftUI, XcodeGen project)
 third_party/  Vendored MIT-licensed httplib.h; Sony's CrSDK goes here (gitignored, see docs/BUILDING.md)
 scripts/      Build script, systemd unit template, one-time Pi network setup script
 docs/         Architecture, SDK capability notes, setup guides, fresh-machine install guide
 ```
+
+`ios/` lives in this repo for now while it's developed alongside the
+server in lockstep (a lot of changes so far have touched both sides at
+once); it may move to its own repo once it's further along and has its
+own release cadence.
 
 ## Lines of code
 
 ```
 server/main.cpp             1,311   (backend: SDK integration, REST API, JSON)
 server/public/index.html    1,110   (frontend: HTML/CSS/JS, single file)
+ios/Sony Config/            1,715   (native iPadOS client, Swift)
 -----------------------------------
-Total authored code         2,421
+Total authored code         4,136
 ```
 
 Plus 675 lines of `LICENSE` (GPLv3, standard boilerplate) and
@@ -220,13 +252,18 @@ the web UI has a one-tap clean shutdown button
 (`POST /api/system/shutdown`) so the Pi doesn't need its power cable
 yanked to turn off.
 
-**The big remaining piece is a native iPad app** — the REST API above was
-deliberately built client-agnostic for exactly this. Also not yet built:
-Picture Profile's deeper sub-parameters beyond the slot selector. Next up:
-validating how much of the install process (beyond the manual,
-un-automatable step of accepting Sony's SDK license) can be handed to an
-AI coding assistant on a completely bare Linux machine — see
-[docs/INSTALL.md](docs/INSTALL.md).
+**Sony Config**, the native iPadOS client, has a first working version —
+all four tabs build and run against the real server and a physical
+camera, including live end-to-end verification in the iOS Simulator. Not
+yet tested on a physical iPad (needs a Development Team ID for on-device
+code signing) or exercised through every interactive control
+individually. Also not yet built, on either client: Picture Profile's
+deeper sub-parameters beyond the slot selector.
+
+Also worth doing: validating how much of the server-side install process
+(beyond the manual, un-automatable step of accepting Sony's SDK license)
+can be handed to an AI coding assistant on a completely bare Linux
+machine — see [docs/INSTALL.md](docs/INSTALL.md).
 
 ## License
 
