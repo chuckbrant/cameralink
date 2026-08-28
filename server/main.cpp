@@ -125,42 +125,6 @@ const char* kPresetsJson = R"JSON([
 
   {
     "group": "Film Recipe Chart",
-    "id": "filmsim-portra-400",
-    "name": "Portra 400",
-    "preset": "CS1",
-    "contrast": -2, "highlights": -3, "shadows": 1, "fade": 5, "saturation": 1,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6800, "whiteBalanceTint": 32,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (warm, soft-rolloff, low contrast). Pushes to Custom Look CS1 -- see note above."
-  },
-  {
-    "group": "Film Recipe Chart",
-    "id": "filmsim-ektar-100",
-    "name": "Ektar 100",
-    "preset": "CS1",
-    "contrast": 4, "highlights": 0, "shadows": 0, "fade": 2, "saturation": 9,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6350, "whiteBalanceTint": 0,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (punchy saturation/contrast). Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Film Recipe Chart",
-    "id": "filmsim-gold-200",
-    "name": "Gold 200",
-    "preset": "CS1",
-    "contrast": 1, "highlights": -2, "shadows": 1, "fade": 7, "saturation": 3,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 7000, "whiteBalanceTint": 48,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (golden cast, lifted shadows). Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Film Recipe Chart",
-    "id": "filmsim-superia-400",
-    "name": "Superia 400",
-    "preset": "CS1",
-    "contrast": 2, "highlights": -1, "shadows": 0, "fade": 3, "saturation": 6,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6350, "whiteBalanceTint": -32,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (cool green/teal cast). Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Film Recipe Chart",
     "id": "filmsim-vision3-500t",
     "name": "Vision3 500T",
     "preset": "CS1",
