@@ -40,6 +40,12 @@
   .specs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
   .specs .spec { background: #222; border: 1px solid #333; border-radius: 6px; padding: 3px 7px; font-size: 11px; color: #ccc; white-space: nowrap; }
   .specs .spec b { color: #888; font-weight: 600; margin-right: 4px; }
+  .wb-grid-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 16px 0; }
+  .wb-grid-readout { font-size: 13px; color: #ccc; }
+  .wb-grid-outer { display: grid; grid-template-columns: 34px 210px 34px; grid-template-rows: 34px 210px 34px; gap: 4px; align-items: center; justify-items: center; }
+  .wb-grid-arrow { background: #2a2a2a; border: 1px solid #444; border-radius: 6px; width: 34px; height: 34px; padding: 0; font-size: 14px; color: #ccc; cursor: pointer; }
+  .wb-grid-arrow:active { background: #3a3a3a; }
+  #wbGridCanvas { border-radius: 6px; cursor: pointer; touch-action: none; }
   .netform { display: none; flex-direction: column; gap: 8px; margin-top: 10px; }
   .netform.open { display: flex; }
   .netform input { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
@@ -94,6 +100,129 @@
       ["sharpnessRange", "Sharpness Range", 1, 5],
       ["clarity", "Clarity", 0, 9],
     ];
+
+    // Replicates the camera's own White Balance Adjustment grid: a 15x15
+    // biaxial A-B/G-M picker, -7..+7 on each axis (whole steps only -- the
+    // camera's screen shows the same 15-line grid). Corner colors are an
+    // approximation of the camera's rainbow-ish grid, not a calibrated
+    // color space -- this is a UI nicety, unrelated to the real calibration
+    // (192=neutral, 4 raw units/step) already confirmed against hardware.
+    const WB_GRID_MIN = -7, WB_GRID_MAX = 7;
+    const WB_GRID_N = WB_GRID_MAX - WB_GRID_MIN + 1;
+
+    function wbGridLerp(a, b, t) { return a + (b - a) * t; }
+    function wbGridCornerColor(xt, yt) {
+      const c00 = [70, 190, 190];   // B, G (top-left)
+      const c10 = [190, 210, 60];   // A, G (top-right)
+      const c01 = [90, 90, 220];    // B, M (bottom-left)
+      const c11 = [210, 70, 160];   // A, M (bottom-right)
+      const top = [0, 1, 2].map(i => wbGridLerp(c00[i], c10[i], xt));
+      const bot = [0, 1, 2].map(i => wbGridLerp(c01[i], c11[i], xt));
+      return [0, 1, 2].map(i => wbGridLerp(top[i], bot[i], yt));
+    }
+
+    function drawWbGrid(ab, gm) {
+      const canvas = document.getElementById("wbGridCanvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const size = canvas.width;
+      const cell = size / WB_GRID_N;
+
+      for (let row = 0; row < WB_GRID_N; row++) {
+        for (let col = 0; col < WB_GRID_N; col++) {
+          const xt = col / (WB_GRID_N - 1);
+          const yt = row / (WB_GRID_N - 1);
+          const [r, g, b] = wbGridCornerColor(xt, yt);
+          ctx.fillStyle = `rgb(${r | 0},${g | 0},${b | 0})`;
+          ctx.fillRect(col * cell, row * cell, cell + 1, cell + 1);
+        }
+      }
+
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= WB_GRID_N; i++) {
+        ctx.beginPath(); ctx.moveTo(i * cell, 0); ctx.lineTo(i * cell, size); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i * cell); ctx.lineTo(size, i * cell); ctx.stroke();
+      }
+
+      const centerIdx = (WB_GRID_N - 1) / 2;
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(centerIdx * cell, 0); ctx.lineTo(centerIdx * cell, size); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, centerIdx * cell); ctx.lineTo(size, centerIdx * cell); ctx.stroke();
+
+      // Marker: col grows with A-B (B=left, A=right), row grows downward
+      // as G-M goes from G (top) to M (bottom).
+      const col = ab - WB_GRID_MIN;
+      const row = WB_GRID_MAX - gm;
+      const cx = col * cell + cell / 2;
+      const cy = row * cell + cell / 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, cell * 0.35, 0, Math.PI * 2);
+      ctx.fillStyle = "#ff3b30";
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    function updateWbGridUI() {
+      const ab = (latestRecipe && latestRecipe.colorFilterAB) || 0;
+      const gm = (latestRecipe && latestRecipe.colorFilterGM) || 0;
+      const readout = document.getElementById("wbGridReadout");
+      if (readout) {
+        const abLabel = ab === 0 ? "0" : (ab > 0 ? "A" + ab : "B" + Math.abs(ab));
+        const gmLabel = gm === 0 ? "0" : (gm > 0 ? "G" + gm : "M" + Math.abs(gm));
+        readout.textContent = `A-B: ${abLabel}   G-M: ${gmLabel}`;
+      }
+      drawWbGrid(ab, gm);
+    }
+
+    async function setColorFilter(ab, gm) {
+      ab = Math.max(WB_GRID_MIN, Math.min(WB_GRID_MAX, ab));
+      gm = Math.max(WB_GRID_MIN, Math.min(WB_GRID_MAX, gm));
+      if (!latestRecipe) latestRecipe = {};
+      latestRecipe.colorFilterAB = ab;
+      latestRecipe.colorFilterGM = gm;
+      updateWbGridUI();
+      const r = await api("/api/recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ colorFilterAB: ab, colorFilterGM: gm }),
+      });
+      if (!r.success) alert("Push failed: " + r.error);
+    }
+
+    function stepColorFilter(axis, delta) {
+      const ab = (latestRecipe && latestRecipe.colorFilterAB) || 0;
+      const gm = (latestRecipe && latestRecipe.colorFilterGM) || 0;
+      if (axis === "ab") setColorFilter(ab + delta, gm);
+      else setColorFilter(ab, gm + delta);
+    }
+
+    function resetColorFilter() {
+      setColorFilter(0, 0);
+    }
+
+    function setupWbGridInteraction() {
+      const canvas = document.getElementById("wbGridCanvas");
+      if (!canvas) return;
+      function handle(evt) {
+        evt.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const point = evt.touches ? evt.touches[0] : evt;
+        const x = (point.clientX - rect.left) / rect.width * canvas.width;
+        const y = (point.clientY - rect.top) / rect.height * canvas.height;
+        const cell = canvas.width / WB_GRID_N;
+        let col = Math.floor(x / cell);
+        let row = Math.floor(y / cell);
+        col = Math.max(0, Math.min(WB_GRID_N - 1, col));
+        row = Math.max(0, Math.min(WB_GRID_N - 1, row));
+        setColorFilter(col + WB_GRID_MIN, WB_GRID_MAX - row);
+      }
+      canvas.addEventListener("click", handle);
+      canvas.addEventListener("touchstart", handle);
+    }
 
     // Builds the Creative Look sliders into #sliders -- called each time the
     // Custom tab is rendered (that element only exists while that tab is
@@ -225,10 +354,8 @@
       }
       document.getElementById("wbMode").value = wbModeFromReadName[recipe.whiteBalanceMode] || "AWB";
       if (recipe.whiteBalanceColorTempK !== undefined) document.getElementById("wbColorTempK").value = recipe.whiteBalanceColorTempK;
-      if (recipe.whiteBalanceTint !== undefined) document.getElementById("wbTint").value = recipe.whiteBalanceTint;
-      if (recipe.whiteBalanceRGain !== undefined) document.getElementById("wbRGain").value = recipe.whiteBalanceRGain;
-      if (recipe.whiteBalanceBGain !== undefined) document.getElementById("wbBGain").value = recipe.whiteBalanceBGain;
       if (recipe.iso !== undefined) document.getElementById("iso").value = recipe.iso;
+      updateWbGridUI();
     }
 
     async function refresh() {
@@ -247,9 +374,8 @@
       }
       body.whiteBalanceMode = document.getElementById("wbMode").value;
       if (document.getElementById("wbColorTempK").value !== "") body.whiteBalanceColorTempK = parseInt(document.getElementById("wbColorTempK").value, 10);
-      if (document.getElementById("wbTint").value !== "") body.whiteBalanceTint = parseInt(document.getElementById("wbTint").value, 10);
-      if (document.getElementById("wbRGain").value !== "") body.whiteBalanceRGain = parseFloat(document.getElementById("wbRGain").value);
-      if (document.getElementById("wbBGain").value !== "") body.whiteBalanceBGain = parseFloat(document.getElementById("wbBGain").value);
+      body.colorFilterAB = (latestRecipe && latestRecipe.colorFilterAB) || 0;
+      body.colorFilterGM = (latestRecipe && latestRecipe.colorFilterGM) || 0;
       const isoVal = document.getElementById("iso").value;
       body.iso = isoVal === "Auto" ? "Auto" : parseInt(isoVal, 10);
       const r = await api("/api/recipe", {
@@ -380,17 +506,20 @@
             <label>Color Temp (K)</label>
             <input type="number" id="wbColorTempK" min="2500" max="9900" step="100" onchange="pushRecipe()">
           </div>
-          <div class="row">
-            <label>Tint (A/B-G/M)</label>
-            <input type="number" id="wbTint" min="-99" max="99" onchange="pushRecipe()">
-          </div>
-          <div class="row">
-            <label>R-Gain</label>
-            <input type="number" id="wbRGain" step="0.1" onchange="pushRecipe()">
-          </div>
-          <div class="row">
-            <label>B-Gain</label>
-            <input type="number" id="wbBGain" step="0.1" onchange="pushRecipe()">
+          <div class="wb-grid-wrap">
+            <div class="wb-grid-readout" id="wbGridReadout">A-B: 0 &nbsp; G-M: 0</div>
+            <div class="wb-grid-outer">
+              <div></div>
+              <button class="wb-grid-arrow" onclick="stepColorFilter('gm', 1)">&#9650;</button>
+              <div></div>
+              <button class="wb-grid-arrow" onclick="stepColorFilter('ab', -1)">&#9664;</button>
+              <canvas id="wbGridCanvas" width="210" height="210"></canvas>
+              <button class="wb-grid-arrow" onclick="stepColorFilter('ab', 1)">&#9654;</button>
+              <div></div>
+              <button class="wb-grid-arrow" onclick="stepColorFilter('gm', -1)">&#9660;</button>
+              <div></div>
+            </div>
+            <button class="small" onclick="resetColorFilter()">Pos. Reset</button>
           </div>
 
           <h3 class="group-heading">ISO</h3>
@@ -416,6 +545,8 @@
           </div>
         `;
         buildSliders();
+        setupWbGridInteraction();
+        updateWbGridUI();
         applyRecipeToCustomForm();
         refresh();
         return;
