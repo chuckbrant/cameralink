@@ -46,6 +46,13 @@
   .wb-grid-arrow { background: #2a2a2a; border: 1px solid #444; border-radius: 6px; width: 34px; height: 34px; padding: 0; font-size: 14px; color: #ccc; cursor: pointer; }
   .wb-grid-arrow:active { background: #3a3a3a; }
   #wbGridCanvas { border-radius: 6px; cursor: pointer; touch-action: none; }
+  .tone-curve-wrap { margin: 4px 0 20px; }
+  .tone-curve-wrap .row { margin-top: 12px; }
+  #toneCurveCanvas { display: block; margin: 0 auto; border-radius: 4px; touch-action: none; cursor: pointer; max-width: 100%; }
+  .tone-curve-labels { display: flex; justify-content: space-between; max-width: 280px; margin: 4px auto 0; }
+  .tc-label { font-size: 10px; color: #888; }
+  .tone-curve-readout { text-align: center; font-size: 12px; color: #aaa; margin-top: 10px; }
+  .tone-curve-hint { font-size: 11px; color: #777; margin-top: 8px; line-height: 1.4; }
   .netform { display: none; flex-direction: column; gap: 8px; margin-top: 10px; }
   .netform.open { display: flex; }
   .netform input { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
@@ -90,16 +97,165 @@
       "CS4": "Custom 4", "CS5": "Custom 5", "CS6": "Custom 6",
     };
 
+    // Contrast/Highlights/Shadows/Fade are handled by the tone curve widget
+    // below instead of plain sliders -- these four are the ones left as
+    // regular sliders.
     const fields = [
-      ["contrast", "Contrast", -9, 9],
-      ["highlights", "Highlights", -9, 9],
-      ["shadows", "Shadows", -9, 9],
-      ["fade", "Fade", 0, 9],
       ["saturation", "Saturation", -9, 9],
       ["sharpness", "Sharpness", 0, 9],
       ["sharpnessRange", "Sharpness Range", 1, 5],
       ["clarity", "Clarity", 0, 9],
     ];
+
+    // Tone curve widget: replaces plain Contrast/Highlights/Shadows/Fade
+    // sliders with a visual curve, matching the standard photo-editing
+    // mental model (S-curve for contrast, localized shadow/highlight
+    // lifts, black-point lift for fade) -- NOT a literal readout of
+    // anything Sony's SDK exposes as an actual curve; Creative Look is 4
+    // independent scalar properties, not real curve control points. This
+    // is a visualization built from those 4 values, drawn with a formula
+    // chosen to look right, not derived from Sony's own tone-mapping math
+    // (which isn't published).
+    let curveState = { contrast: 0, highlights: 0, shadows: 0, fade: 0 };
+
+    function tcContrastCurve(x, contrast) {
+      const k = (contrast / 9) * 4;
+      if (Math.abs(k) < 0.001) return x;
+      const sig = v => 1 / (1 + Math.exp(-k * (v - 0.5)));
+      return (sig(x) - sig(0)) / (sig(1) - sig(0));
+    }
+    function tcBump(x, center, width) {
+      const d = (x - center) / width;
+      return Math.exp(-d * d * 4);
+    }
+    function toneCurveY(x, curve) {
+      let y = tcContrastCurve(x, curve.contrast);
+      y += (curve.shadows / 9) * 0.18 * tcBump(x, 0.28, 0.28);
+      y += (curve.highlights / 9) * 0.18 * tcBump(x, 0.72, 0.28);
+      const fadeAmt = (curve.fade / 9) * 0.22;
+      y = y * (1 - fadeAmt) + fadeAmt * tcBump(x, 0, 0.5);
+      return Math.max(0, Math.min(1, y));
+    }
+
+    const TC_POINTS = [
+      { key: "fade", x: 0.0, min: 0, max: 9, label: "Blacks" },
+      { key: "shadows", x: 0.28, min: -9, max: 9, label: "Shadows" },
+      { key: "highlights", x: 0.72, min: -9, max: 9, label: "Highlights" },
+    ];
+
+    function drawToneCurve() {
+      const canvas = document.getElementById("toneCurveCanvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width, h = canvas.height;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 4; i++) {
+        const gx = w * i / 4, gy = h * i / 4;
+        ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+      }
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i <= 100; i++) {
+        const x = i / 100;
+        const y = toneCurveY(x, curveState);
+        const px = x * w, py = h - y * h;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+
+      // Fixed "Whites" corner -- Sony has no independent whites control,
+      // shown only as a visual anchor matching the reference curve grid.
+      ctx.beginPath();
+      ctx.arc(w, 0, 5, 0, Math.PI * 2);
+      ctx.fillStyle = "#888";
+      ctx.fill();
+
+      for (const p of TC_POINTS) {
+        const y = toneCurveY(p.x, curveState);
+        const px = p.x * w, py = h - y * h;
+        ctx.beginPath();
+        ctx.arc(px, py, 7, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
+    function updateToneCurveReadout() {
+      const el = document.getElementById("toneCurveReadout");
+      if (el) el.textContent =
+        `Contrast ${curveState.contrast} · Highlights ${curveState.highlights} · Shadows ${curveState.shadows} · Blacks/Fade ${curveState.fade}`;
+      const contrastSlider = document.getElementById("contrastSlider");
+      if (contrastSlider) contrastSlider.value = curveState.contrast;
+    }
+
+    function setupToneCurveInteraction() {
+      const canvas = document.getElementById("toneCurveCanvas");
+      if (!canvas) return;
+      let dragPoint = null, dragStartY = 0, dragStartVal = 0;
+
+      function pos(evt) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: (evt.clientX - rect.left) / rect.width * canvas.width,
+          y: (evt.clientY - rect.top) / rect.height * canvas.height,
+        };
+      }
+      function findPoint(px) {
+        let closest = null, closestDist = Infinity;
+        for (const p of TC_POINTS) {
+          const d = Math.abs(px - p.x * canvas.width);
+          if (d < closestDist) { closestDist = d; closest = p; }
+        }
+        return closestDist < 40 ? closest : null;
+      }
+      canvas.addEventListener("pointerdown", (evt) => {
+        const p = pos(evt);
+        const point = findPoint(p.x);
+        if (!point) return;
+        dragPoint = point;
+        dragStartY = p.y;
+        dragStartVal = curveState[point.key];
+        canvas.setPointerCapture(evt.pointerId);
+      });
+      canvas.addEventListener("pointermove", (evt) => {
+        if (!dragPoint) return;
+        const p = pos(evt);
+        const dy = dragStartY - p.y;
+        const range = dragPoint.max - dragPoint.min;
+        let newVal = dragStartVal + (dy / canvas.height) * range * 1.6;
+        newVal = Math.max(dragPoint.min, Math.min(dragPoint.max, Math.round(newVal)));
+        if (curveState[dragPoint.key] !== newVal) {
+          curveState[dragPoint.key] = newVal;
+          drawToneCurve();
+          updateToneCurveReadout();
+        }
+      });
+      function finish() {
+        if (!dragPoint) return;
+        dragPoint = null;
+        pushRecipe();
+      }
+      canvas.addEventListener("pointerup", finish);
+      canvas.addEventListener("pointercancel", finish);
+    }
+
+    function onContrastSliderInput() {
+      curveState.contrast = parseInt(document.getElementById("contrastSlider").value, 10);
+      drawToneCurve();
+      updateToneCurveReadout();
+    }
 
     // Replicates the camera's own White Balance Adjustment grid: a 15x15
     // biaxial A-B/G-M picker, -7..+7 on each axis (whole steps only -- the
@@ -359,6 +515,14 @@
       document.getElementById("wbMode").value = wbModeFromReadName[recipe.whiteBalanceMode] || "AWB";
       if (recipe.whiteBalanceColorTempK !== undefined) document.getElementById("wbColorTempK").value = recipe.whiteBalanceColorTempK;
       if (recipe.iso !== undefined) document.getElementById("iso").value = recipe.iso;
+      curveState = {
+        contrast: recipe.contrast || 0,
+        highlights: recipe.highlights || 0,
+        shadows: recipe.shadows || 0,
+        fade: recipe.fade || 0,
+      };
+      drawToneCurve();
+      updateToneCurveReadout();
       updateWbGridUI();
     }
 
@@ -376,6 +540,10 @@
       for (const [key] of fields) {
         body[key] = parseInt(document.getElementById(key).value, 10);
       }
+      body.contrast = curveState.contrast;
+      body.highlights = curveState.highlights;
+      body.shadows = curveState.shadows;
+      body.fade = curveState.fade;
       body.whiteBalanceMode = document.getElementById("wbMode").value;
       if (document.getElementById("wbColorTempK").value !== "") body.whiteBalanceColorTempK = parseInt(document.getElementById("wbColorTempK").value, 10);
       body.colorFilterAB = (latestRecipe && latestRecipe.colorFilterAB) || 0;
@@ -490,6 +658,21 @@
               <option value="CS6">Custom 6</option>
             </select>
           </div>
+          <h3 class="group-heading">Tone Curve</h3>
+          <div class="tone-curve-wrap">
+            <canvas id="toneCurveCanvas" width="280" height="220"></canvas>
+            <div class="tone-curve-labels">
+              <span class="tc-label">Blacks / Shadows</span>
+              <span class="tc-label">Highlights / Whites</span>
+            </div>
+            <div class="tone-curve-readout" id="toneCurveReadout">Contrast 0 &middot; Highlights 0 &middot; Shadows 0 &middot; Blacks/Fade 0</div>
+            <div class="row">
+              <label>Contrast</label>
+              <input type="range" id="contrastSlider" min="-9" max="9" value="0" oninput="onContrastSliderInput()" onchange="pushRecipe()">
+            </div>
+            <div class="tone-curve-hint">Drag the white dots on the curve to adjust Blacks/Fade, Shadows, and Highlights. Contrast bends the whole curve.</div>
+          </div>
+
           <div id="sliders"></div>
 
           <h3 class="group-heading">White Balance</h3>
@@ -549,6 +732,9 @@
           </div>
         `;
         buildSliders();
+        setupToneCurveInteraction();
+        drawToneCurve();
+        updateToneCurveReadout();
         setupWbGridInteraction();
         updateWbGridUI();
         applyRecipeToCustomForm();
