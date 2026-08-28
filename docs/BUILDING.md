@@ -16,18 +16,25 @@ to fetch your own copy.
    - Older 32-bit Pi builds → **Linux32ARMv7**
 3. Unzip it. Inside you'll find several sample-app bundles (`SimpleCli.zip`,
    `RemoteCli.zip`) that each carry their own copy of the same headers and
-   `.so` libraries. Any one of them works — this project only needs:
+   `.so` libraries. Any one of them works — this project needs:
    ```
    <bundle>/app/CRSDK/*.h              → third_party/CrSDK/include/CRSDK/
    <bundle>/external/crsdk/*.so        → third_party/CrSDK/lib/
    <bundle>/external/crsdk/CrAdapter/  → third_party/CrSDK/lib/CrAdapter/
+   <bundle>/app/CrDebugString.cpp      → third_party/CrSDK/CrDebugString.cpp
+   <bundle>/app/CrDebugString.h        → third_party/CrSDK/CrDebugString.h
    ```
+   `CrDebugString.cpp`/`.h` are Sony's own sample-code property-name lookup
+   table (`CrDevicePropertyString()`) — used by the `/api/debug/allprops`
+   diagnostic endpoint to show human-readable property names instead of raw
+   hex codes.
 4. End state should look like:
    ```
    third_party/CrSDK/
      include/CRSDK/CameraRemote_SDK.h, CrDeviceProperty.h, ...
      lib/libCr_Core.so, libmonitor_protocol.so, libmonitor_protocol_pf.so
      lib/CrAdapter/libCr_PTP_IP.so, libCr_PTP_USB.so, libusb-1.0.so, libssh2.so
+     CrDebugString.cpp, CrDebugString.h
    ```
    (`third_party/CrSDK/` is gitignored, so this step never touches git.)
 

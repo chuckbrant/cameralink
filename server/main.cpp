@@ -17,6 +17,8 @@
 #include "CrDeviceProperty.h"
 #include "CameraRemote_SDK.h"
 #include "IDeviceCallback.h"
+#include "CrControlCode.h"
+#include "CrDebugString.h"
 #include "httplib.h"
 
 namespace SDK = SCRSDK;
@@ -38,9 +40,10 @@ const char* kPresetsJson = R"JSON([
     "contrast": -2, "highlights": -1, "shadows": -1, "fade": 1,
     "saturation": 0, "sharpness": 0, "sharpnessRange": 1, "clarity": 0,
     "whiteBalanceMode": "Daylight",
+    "colorFilterAB": 1, "colorFilterGM": 1,
     "iso": 400,
     "baseISO": "400",
-    "whiteBalanceNote": "Color Filter A+1 G+1 (not auto-applied)",
+    "whiteBalanceNote": "Color Filter A+1 G+1",
     "notes": "Low contrast with a light veil for the soft, forgiving latitude look."
   },
   {
@@ -51,9 +54,10 @@ const char* kPresetsJson = R"JSON([
     "contrast": 2, "highlights": -1, "shadows": -1, "fade": 0,
     "saturation": 3, "sharpness": 0, "sharpnessRange": 1, "clarity": 1,
     "whiteBalanceMode": "Daylight",
+    "colorFilterAB": 1,
     "iso": 100,
     "baseISO": "100",
-    "whiteBalanceNote": "Color Filter A+1 (not auto-applied)",
+    "whiteBalanceNote": "Color Filter A+1",
     "notes": "Ultra-vivid saturation with fine, sharp detail; Clarity +1 echoes Ektar's crispness."
   },
   {
@@ -64,9 +68,10 @@ const char* kPresetsJson = R"JSON([
     "contrast": 1, "highlights": -1, "shadows": -1, "fade": 0,
     "saturation": 2, "sharpness": 0, "sharpnessRange": 1, "clarity": 0,
     "whiteBalanceMode": "Daylight",
+    "colorFilterAB": 3, "colorFilterGM": 1,
     "iso": 200,
     "baseISO": "200",
-    "whiteBalanceNote": "Color Filter A+3 G+1 (not auto-applied)",
+    "whiteBalanceNote": "Color Filter A+3 G+1",
     "notes": "Low-to-medium contrast, kept modest, as on the other two Kodak stocks."
   },
   {
@@ -77,9 +82,10 @@ const char* kPresetsJson = R"JSON([
     "contrast": -1, "highlights": -1, "shadows": -1, "fade": 1,
     "saturation": -1, "sharpness": 0, "sharpnessRange": 1, "clarity": 0,
     "whiteBalanceMode": "AWB",
+    "colorFilterAB": 2, "colorFilterGM": 2,
     "iso": 400,
     "baseISO": "400 (rate 200)",
-    "whiteBalanceNote": "Daylight/AWB, Color Filter A+2 G+2 (not auto-applied)",
+    "whiteBalanceNote": "Daylight/AWB, Color Filter A+2 G+2",
     "notes": "Fujifilm's own copy stresses neutral grays and controlled shadow saturation."
   },
   {
@@ -117,9 +123,10 @@ const char* kPresetsJson = R"JSON([
     "contrast": 1, "highlights": -1, "shadows": -1, "fade": 0,
     "saturation": 1, "sharpness": 0, "sharpnessRange": 1, "clarity": 0,
     "whiteBalanceMode": "Daylight",
+    "colorFilterAB": 1,
     "iso": 400,
     "baseISO": "400",
-    "whiteBalanceNote": "Color Filter A+1 (not auto-applied)",
+    "whiteBalanceNote": "Color Filter A+1",
     "notes": "Fujifilm's own bulletin emphasizes vibrant reds/blues/yellows and smooth skin tones, so only a mild warm push is used."
   },
 
@@ -491,6 +498,26 @@ int64_t decodeSigned(const SDK::CrDeviceProperty& p) {
     return (int64_t)raw;
 }
 
+// ColorTuningAB/ColorTuningGM calibration -- confirmed empirically against
+// the real a7R V (192=neutral, 220=A/G+7, 164=B/M-7), and matches Sony's
+// own documented raw range exactly: 0x9C(156,"B9")..0xE4(228,"A9"/"G9"),
+// center 192, 4 raw units per on-screen step. Positive = A (amber) / G
+// (green); negative = B (blue) / M (magenta).
+constexpr int kColorTuningCenter = 192;
+constexpr int kColorTuningStep = 4;
+constexpr int kColorTuningMinRaw = 156;
+constexpr int kColorTuningMaxRaw = 228;
+
+int colorTuningToOnscreen(CrInt64u raw) {
+    return ((int)raw - kColorTuningCenter) / kColorTuningStep;
+}
+
+CrInt64u colorTuningFromOnscreen(int onscreen) {
+    int raw = kColorTuningCenter + onscreen * kColorTuningStep;
+    raw = std::max(kColorTuningMinRaw, std::min(kColorTuningMaxRaw, raw));
+    return (CrInt64u)raw;
+}
+
 std::string presetName(CrInt64u raw) {
     switch (raw) {
         case SDK::CrCreativeLook_ST:  return "ST";
@@ -733,10 +760,8 @@ std::string readRecipeJson() {
         SDK::CrDeviceProperty_CreativeLook,
         SDK::CrDeviceProperty_PictureProfile,
         SDK::CrDeviceProperty_WhiteBalance,
-        SDK::CrDeviceProperty_WhiteBalanceTint,
-        SDK::CrDeviceProperty_WhiteBalancePresetColorTemperature,
-        SDK::CrDeviceProperty_WhiteBalanceRGain,
-        SDK::CrDeviceProperty_WhiteBalanceBGain,
+        SDK::CrDeviceProperty_ColorTuningAB,
+        SDK::CrDeviceProperty_ColorTuningGM,
         SDK::CrDeviceProperty_IsoSensitivity,
     };
     for (auto& f : creativeLookFields()) codes.push_back(f.code);
@@ -761,14 +786,15 @@ std::string readRecipeJson() {
             json << "\"pictureProfileSlot\":\"" << pictureProfileSlotName(p.GetCurrentValue()) << "\"";
         } else if (code == SDK::CrDeviceProperty_WhiteBalance) {
             json << "\"whiteBalanceMode\":\"" << whiteBalanceModeName(p.GetCurrentValue()) << "\"";
-        } else if (code == SDK::CrDeviceProperty_WhiteBalanceTint) {
-            json << "\"whiteBalanceTint\":" << decodeSigned(p);
-        } else if (code == SDK::CrDeviceProperty_WhiteBalancePresetColorTemperature) {
-            json << "\"whiteBalanceColorTempK\":" << decodeSigned(p);
-        } else if (code == SDK::CrDeviceProperty_WhiteBalanceRGain) {
-            json << "\"whiteBalanceRGain\":" << (decodeSigned(p) / 10.0);
-        } else if (code == SDK::CrDeviceProperty_WhiteBalanceBGain) {
-            json << "\"whiteBalanceBGain\":" << (decodeSigned(p) / 10.0);
+        } else if (code == SDK::CrDeviceProperty_ColorTuningAB) {
+            // Raw is CrDataType_UInt8Range, 0x9C(156,"B9")..0xE4(228,"A9"),
+            // center 192, 4 raw units per on-screen step -- confirmed
+            // empirically against the real camera (192=0, 220=A/G+7,
+            // 164=B/M-7) after WhiteBalanceTint/RGain/BGain turned out to
+            // not exist on this camera at all (see colorTuningToOnscreen).
+            json << "\"colorFilterAB\":" << colorTuningToOnscreen(p.GetCurrentValue());
+        } else if (code == SDK::CrDeviceProperty_ColorTuningGM) {
+            json << "\"colorFilterGM\":" << colorTuningToOnscreen(p.GetCurrentValue());
         } else if (code == SDK::CrDeviceProperty_IsoSensitivity) {
             CrInt64u raw = p.GetCurrentValue();
             CrInt64u isoValue = raw & 0xFFFFFF;
@@ -845,39 +871,34 @@ std::string writeRecipeJson(const std::string& body) {
         if (err) fprintf(stderr, "[writeRecipeJson] color temp not applied (0x%x)\n", err);
     }
 
-    // WB Tint/R-Gain/B-Gain: non-fatal, same reasoning as color temp above --
-    // these can fail with CrError_Api_InvalidCalled (0x8402) right after a
-    // WB mode switch even after the mode change itself is confirmed applied.
-    // Log and continue rather than aborting fields that come after them
-    // (e.g. ISO) in write order.
-    double tint;
-    if (jsonFindNumber(body, "whiteBalanceTint", tint)) {
+    // Color Filter fine-tune (A-B / G-M axes) -- CrDeviceProperty_ColorTuningAB
+    // and _ColorTuningGM, confirmed via GetDeviceProperties() to actually
+    // exist and be get/set-enabled on this camera, unlike WhiteBalanceTint/
+    // RGain/BGain (which are absent from the camera's full property list
+    // entirely -- confirmed by dumping and inspecting all 431 properties,
+    // not just assumed). Calibration (192=neutral, 4 raw units/step,
+    // positive=A/G, negative=B/M) confirmed empirically against the real
+    // camera screen. Both are CrDataType_UInt8Range -- the earlier dead
+    // properties were being set with a plain (non-Range) type, which may
+    // also have contributed to those writes silently no-oping.
+    double colorFilterAB;
+    if (jsonFindNumber(body, "colorFilterAB", colorFilterAB)) {
         SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_WhiteBalanceTint);
-        prop.SetValueType(SDK::CrDataType_Int8);
-        prop.SetCurrentValue((CrInt64u)(int64_t)tint);
+        prop.SetCode(SDK::CrDeviceProperty_ColorTuningAB);
+        prop.SetValueType(SDK::CrDataType_UInt8Range);
+        prop.SetCurrentValue(colorTuningFromOnscreen((int)std::lround(colorFilterAB)));
         SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) fprintf(stderr, "[writeRecipeJson] WB tint(A/B) not applied (0x%x)\n", err);
+        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set Color Filter A-B 0x%x", err); return buf; }
     }
 
-    double rGain;
-    if (jsonFindNumber(body, "whiteBalanceRGain", rGain)) {
+    double colorFilterGM;
+    if (jsonFindNumber(body, "colorFilterGM", colorFilterGM)) {
         SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_WhiteBalanceRGain);
-        prop.SetValueType(SDK::CrDataType_Int16);
-        prop.SetCurrentValue((CrInt64u)(int64_t)std::lround(rGain * 10));
+        prop.SetCode(SDK::CrDeviceProperty_ColorTuningGM);
+        prop.SetValueType(SDK::CrDataType_UInt8Range);
+        prop.SetCurrentValue(colorTuningFromOnscreen((int)std::lround(colorFilterGM)));
         SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) fprintf(stderr, "[writeRecipeJson] WB R-Gain not applied (0x%x)\n", err);
-    }
-
-    double bGain;
-    if (jsonFindNumber(body, "whiteBalanceBGain", bGain)) {
-        SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_WhiteBalanceBGain);
-        prop.SetValueType(SDK::CrDataType_Int16);
-        prop.SetCurrentValue((CrInt64u)(int64_t)std::lround(bGain * 10));
-        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) fprintf(stderr, "[writeRecipeJson] WB B-Gain not applied (0x%x)\n", err);
+        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set Color Filter G-M 0x%x", err); return buf; }
     }
 
     std::string isoStr;
@@ -972,6 +993,39 @@ int main() {
         std::ostringstream json;
         json << "{\"found\":" << (ip.empty() ? "false" : "true")
              << ",\"ip\":\"" << jsonEscape(ip) << "\"}";
+        res.set_content(json.str(), "application/json");
+    });
+
+    // Dumps the camera's FULL, unrestricted property list (not our own
+    // hardcoded GetSelectDeviceProperties subset) -- how ColorTuningAB/GM
+    // were originally found and confirmed real, after WhiteBalanceTint/
+    // RGain/BGain turned out to not exist on this camera at all. Kept
+    // around as a standing diagnostic tool, not just a one-off.
+    svr.Get("/api/debug/allprops", [](const httplib::Request&, httplib::Response& res) {
+        std::lock_guard<std::mutex> lock(g_cameraMutex);
+        if (!g_connected) { res.set_content("{\"error\":\"not connected\"}", "application/json"); return; }
+        SDK::CrDeviceProperty* props = nullptr;
+        CrInt32 numProps = 0;
+        SDK::CrError err = SDK::GetDeviceProperties(g_deviceHandle, &props, &numProps);
+        if (err) {
+            char buf[64]; snprintf(buf, sizeof(buf), "{\"error\":\"0x%x\"}", err);
+            res.set_content(buf, "application/json");
+            return;
+        }
+        std::ostringstream json;
+        json << "{\"totalProps\":" << numProps << ",\"props\":[";
+        for (CrInt32 i = 0; i < numProps; i++) {
+            if (i > 0) json << ",";
+            CrInt32u code = props[i].GetCode();
+            std::string name = CrDevicePropertyString((SDK::CrDevicePropertyCode)code);
+            json << "{\"code\":\"0x" << std::hex << code << std::dec << "\""
+                 << ",\"name\":\"" << jsonEscape(name) << "\""
+                 << ",\"getEnable\":" << props[i].IsGetEnableCurrentValue()
+                 << ",\"setEnable\":" << props[i].IsSetEnableCurrentValue()
+                 << ",\"value\":" << decodeSigned(props[i]) << "}";
+        }
+        json << "]}";
+        SDK::ReleaseDeviceProperties(g_deviceHandle, props);
         res.set_content(json.str(), "application/json");
     });
 

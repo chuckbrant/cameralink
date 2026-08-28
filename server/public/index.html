@@ -37,6 +37,9 @@
   .card-head .look { font-size: 12px; color: #888; }
   .card .notes { font-size: 12px; color: #999; margin: 8px 0; line-height: 1.4; }
   .card .meta { font-size: 12px; color: #777; margin-bottom: 8px; }
+  .specs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .specs .spec { background: #222; border: 1px solid #333; border-radius: 6px; padding: 3px 7px; font-size: 11px; color: #ccc; white-space: nowrap; }
+  .specs .spec b { color: #888; font-weight: 600; margin-right: 4px; }
   .netform { display: none; flex-direction: column; gap: 8px; margin-top: 10px; }
   .netform.open { display: flex; }
   .netform input { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
@@ -431,12 +434,36 @@
             <span class="look">${presetNames[p.preset] || p.preset}</span>
           </div>
           ${metaParts.length ? `<div class="meta">${metaParts.join(" &middot; ")}</div>` : ""}
+          ${buildSpecsHtml(p)}
           <div class="notes">${p.notes}</div>
           <button class="small primary">Download to Camera</button>
         `;
         card.querySelector("button").addEventListener("click", () => pushPreset(p));
         container.appendChild(card);
       }
+    }
+
+    // Full per-field breakdown of a preset's settings, straight from the
+    // same data pushPreset() sends to the camera -- only shows fields the
+    // preset actually defines (a pack with no source data for e.g.
+    // sharpness just omits that chip, matching the "don't touch fields we
+    // have no real data for" design already used when pushing).
+    const specFieldDefs = [
+      ["contrast", "Contrast"], ["highlights", "Highlights"], ["shadows", "Shadows"],
+      ["fade", "Fade"], ["saturation", "Saturation"], ["sharpness", "Sharpness"],
+      ["sharpnessRange", "Sharp. Range"], ["clarity", "Clarity"],
+    ];
+    function buildSpecsHtml(p) {
+      const chips = [];
+      for (const [key, label] of specFieldDefs) {
+        if (p[key] !== null && p[key] !== undefined) chips.push(`<span class="spec"><b>${label}</b>${p[key]}</span>`);
+      }
+      if (p.whiteBalanceMode) chips.push(`<span class="spec"><b>WB</b>${p.whiteBalanceMode}</span>`);
+      if (p.whiteBalanceColorTempK !== undefined) chips.push(`<span class="spec"><b>Kelvin</b>${p.whiteBalanceColorTempK}K</span>`);
+      if (p.colorFilterAB) chips.push(`<span class="spec"><b>Filter A-B</b>${p.colorFilterAB > 0 ? "A" : "B"}${Math.abs(p.colorFilterAB)}</span>`);
+      if (p.colorFilterGM) chips.push(`<span class="spec"><b>Filter G-M</b>${p.colorFilterGM > 0 ? "G" : "M"}${Math.abs(p.colorFilterGM)}</span>`);
+      if (p.iso !== undefined) chips.push(`<span class="spec"><b>ISO</b>${p.iso}</span>`);
+      return chips.length ? `<div class="specs">${chips.join("")}</div>` : "";
     }
 
     async function pushPreset(p) {
@@ -447,7 +474,7 @@
       const optionalFields = [
         "contrast", "highlights", "shadows", "fade", "saturation",
         "sharpness", "sharpnessRange", "clarity",
-        "whiteBalanceMode", "whiteBalanceColorTempK", "whiteBalanceTint", "iso",
+        "whiteBalanceMode", "whiteBalanceColorTempK", "colorFilterAB", "colorFilterGM", "iso",
       ];
       for (const key of optionalFields) {
         if (p[key] !== null && p[key] !== undefined) body[key] = p[key];

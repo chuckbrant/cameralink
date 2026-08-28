@@ -14,14 +14,24 @@ if [ ! -d "$SDK_DIR/include/CRSDK" ] || [ ! -f "$SDK_DIR/lib/libCr_Core.so" ]; t
   exit 1
 fi
 
+if [ ! -f "$SDK_DIR/CrDebugString.cpp" ] || [ ! -f "$SDK_DIR/CrDebugString.h" ]; then
+  echo "error: CrDebugString.cpp/.h not found at $SDK_DIR" >&2
+  echo "See docs/BUILDING.md for how to obtain and place them." >&2
+  exit 1
+fi
+
 mkdir -p "$OUT_DIR"
 
 # -fsigned-char is required on ARM (char defaults to unsigned there, but the
 # SDK headers assume signed -- without this flag the build fails with
 # "enumerator value is outside the range of underlying type" errors).
+#
+# CrDebugString.cpp is Sony's own sample-code property-name lookup table
+# (CrDevicePropertyString()) -- used by the /api/debug/allprops endpoint to
+# show human-readable names instead of raw hex codes.
 g++ -std=c++17 -pthread -fsigned-char -fstack-protector-all \
-  -I "$SDK_DIR/include/CRSDK" -I "$REPO_ROOT/third_party" \
-  "$REPO_ROOT/server/main.cpp" \
+  -I "$SDK_DIR/include/CRSDK" -I "$REPO_ROOT/third_party" -I "$SDK_DIR" \
+  "$REPO_ROOT/server/main.cpp" "$SDK_DIR/CrDebugString.cpp" \
   -L "$SDK_DIR/lib" -lCr_Core \
   -Wl,-rpath,'$ORIGIN' \
   -o "$OUT_DIR/cameralink_server"
