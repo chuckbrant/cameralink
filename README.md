@@ -282,6 +282,10 @@ with the camera and container both joining an existing home Wi-Fi network
 instead of the Pi's own access point — see
 [docs/DOCKER.md](docs/DOCKER.md).
 
+Short demo, Sony Config running in the iOS Simulator against that NAS
+deployment, showing live settings pulled from the real camera across all
+four tabs: [docs/videos/sony-config-nas-demo.mp4](docs/videos/sony-config-nas-demo.mp4).
+
 Also worth doing: validating how much of the server-side install process
 (beyond the manual, un-automatable step of accepting Sony's SDK license)
 can be handed to an AI coding assistant on a completely bare Linux
