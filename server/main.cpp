@@ -1011,6 +1011,17 @@ int main() {
         res.set_content(json.str(), "application/json");
     });
 
+    // Saved camera profiles (name/ip/mac/userId/password) for one-tap
+    // connect buttons -- lives in saved_cameras.json, gitignored, never
+    // committed. Missing file just means no saved cameras, not an error.
+    svr.Get("/api/network/saved", [](const httplib::Request&, httplib::Response& res) {
+        std::ifstream f("saved_cameras.json");
+        if (!f) { res.set_content("[]", "application/json"); return; }
+        std::ostringstream ss;
+        ss << f.rdbuf();
+        res.set_content(ss.str(), "application/json");
+    });
+
     svr.Post("/api/connect/usb", [](const httplib::Request&, httplib::Response& res) {
         std::string error = connectUsb();
         std::ostringstream json;

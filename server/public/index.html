@@ -170,17 +170,21 @@
       });
     }
 
-    // One-tap connect for Chuck's own a7R V -- static IP on CameraBrdg, so
-    // no network search needed, and the Remote Shoot Function pairing
-    // credentials are stable (confirmed not single-use/regenerating), so
-    // there's no reason to make him retype them every time.
-    async function connectChucksA7RV() {
-      await doConnectNetwork({
-        ip: "10.42.0.50",
-        mac: "50:26:EF:B7:F4:B5",
-        userId: "emF9mA",
-        password: "6TgT2xQW",
-      });
+    // Saved camera profiles (name/ip/mac/userId/password) come from the
+    // server's saved_cameras.json -- gitignored, never committed, so no
+    // real credentials ever end up in this file or in git history.
+    async function loadSavedCameras() {
+      const saved = await api("/api/network/saved");
+      const el = document.getElementById("savedCameras");
+      if (!el) return;
+      el.innerHTML = "";
+      for (const cam of saved) {
+        const btn = document.createElement("button");
+        btn.className = "primary";
+        btn.textContent = "Connect (" + cam.name + ")";
+        btn.addEventListener("click", () => doConnectNetwork(cam));
+        el.appendChild(btn);
+      }
     }
 
     // The API's read-side white balance names (e.g. "Color Temp/Filter",
@@ -309,15 +313,15 @@
 
       if (activeTab === SETUP_TAB) {
         container.innerHTML = `
+          <div class="actions" id="savedCameras"></div>
           <div class="actions">
-            <button class="primary" onclick="connectChucksA7RV()">Connect (Chuck's A7rV)</button>
             <button onclick="toggleNetForm()">Connect (Network)</button>
             <button onclick="refresh()">Refresh</button>
           </div>
           <div class="netform" id="netform">
             <input id="netIp" placeholder="Camera IP address, e.g. 10.42.0.50">
             <div class="row" style="margin:0;">
-              <input id="netMac" placeholder="Camera MAC address, e.g. aa:bb:cc:dd:ee:ff" value="50:26:EF:B7:F4:B5" style="flex:1;">
+              <input id="netMac" placeholder="Camera MAC address, e.g. aa:bb:cc:dd:ee:ff" style="flex:1;">
               <button class="small" onclick="findCameraIp()">Find on Network</button>
             </div>
             <span id="findStatus" class="wb"></span>
@@ -326,6 +330,7 @@
             <button class="primary" onclick="connectNetwork()">Connect</button>
           </div>
         `;
+        loadSavedCameras();
         return;
       }
 

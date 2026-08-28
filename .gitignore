@@ -4,6 +4,10 @@
 # it locally.
 third_party/CrSDK/
 
+# Real camera pairing credentials (IP/MAC/userId/password) -- never
+# committed. See server/saved_cameras.json.example for the format.
+server/saved_cameras.json
+
 # Build output
 server/build/
 *.o

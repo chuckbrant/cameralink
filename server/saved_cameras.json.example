@@ -1,0 +1,9 @@
+[
+  {
+    "name": "My A7RV",
+    "ip": "10.42.0.50",
+    "mac": "AA:BB:CC:DD:EE:FF",
+    "userId": "userIdFromCameraScreen",
+    "password": "passwordFromCameraScreen"
+  }
+]
