@@ -13,6 +13,19 @@ flowchart LR
     Pi -->|WiFi| Camera["Sony a7R V"]
 ```
 
+If you don't need field mobility — a home or studio setup that never
+leaves the house — the Pi can be swapped for a NAS or home server you
+already run 24/7, with the camera and server both joining your existing
+Wi-Fi instead of the Pi's own dedicated access point:
+
+```mermaid
+flowchart LR
+    iPad2["iPad / browser"] -->|WiFi/LAN| NAS["NAS / home server<br/>(Docker)"]
+    NAS -->|WiFi| Camera2["Sony a7R V"]
+```
+
+See [docs/DOCKER.md](docs/DOCKER.md) for that path.
+
 Full diagram and the reasoning behind it: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 **The Pi Zero 2 W + iPad combo above is the field-deployable design
