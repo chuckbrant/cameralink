@@ -75,17 +75,6 @@
     <div id="tabContent"></div>
   </div>
 
-  <div class="footer">
-    <button class="danger" onclick="toggleConfirm()">Shut Down Pi</button>
-    <div class="confirm" id="confirm">
-      This will cleanly power off the Pi. You'll need to unplug and replug power (or press its power button, if wired) to turn it back on.
-      <div class="actions">
-        <button class="danger" onclick="shutdownPi()">Confirm Shutdown</button>
-        <button onclick="toggleConfirm()">Cancel</button>
-      </div>
-    </div>
-  </div>
-
   <script>
     // Sony's own 2-letter Creative Look codes, mapped to their real names --
     // used both for the Custom tab's preset dropdown and for the "look"
@@ -244,9 +233,7 @@
         }
       });
       function finish() {
-        if (!dragPoint) return;
         dragPoint = null;
-        pushRecipe();
       }
       canvas.addEventListener("pointerup", finish);
       canvas.addEventListener("pointercancel", finish);
@@ -265,7 +252,6 @@
       curveState = { contrast, highlights, shadows, fade };
       drawToneCurve();
       updateToneCurveReadout();
-      pushRecipe();
     }
 
     // Replicates the camera's own White Balance Adjustment grid: a 15x15
@@ -349,19 +335,13 @@
       drawWbGrid(ab, gm);
     }
 
-    async function setColorFilter(ab, gm) {
+    function setColorFilter(ab, gm) {
       ab = Math.max(WB_GRID_MIN, Math.min(WB_GRID_MAX, ab));
       gm = Math.max(WB_GRID_MIN, Math.min(WB_GRID_MAX, gm));
       if (!latestRecipe) latestRecipe = {};
       latestRecipe.colorFilterAB = ab;
       latestRecipe.colorFilterGM = gm;
       updateWbGridUI();
-      const r = await api("/api/recipe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ colorFilterAB: ab, colorFilterGM: gm }),
-      });
-      if (!r.success) alert("Push failed: " + r.error);
     }
 
     function stepColorFilter(axis, delta) {
@@ -425,7 +405,6 @@
         const input = row.querySelector("input");
         const val = row.querySelector(".val");
         input.addEventListener("input", () => { val.textContent = input.value; });
-        input.addEventListener("change", () => pushRecipe());
       }
     }
 
@@ -529,20 +508,29 @@
       const info = await api("/api/camera-info");
       if (info.error) { el.innerHTML = ""; return; }
       el.innerHTML = `
-        <h3 class="group-heading">Camera Info</h3>
+        <h3 class="group-heading">Camera</h3>
         <div class="specs">
           <span class="spec"><b>Model</b>${info.modelName || "—"}</span>
           <span class="spec"><b>Serial</b>${info.bodySerialNumber || "—"}</span>
+          <span class="spec"><b>Software Ver</b>${info.softwareVersion || "—"}</span>
+          <span class="spec"><b>Battery</b>${info.batteryLevel || "—"} (${info.batteryRemain !== undefined ? info.batteryRemain + "%" : "—"})</span>
+        </div>
+
+        <h3 class="group-heading">Lens</h3>
+        <div class="specs">
           <span class="spec"><b>Lens</b>${info.lensModelName || "—"}</span>
           <span class="spec"><b>Lens Ver</b>${info.lensVersionNumber || "—"}</span>
-          <span class="spec"><b>Battery</b>${info.batteryLevel || "—"} (${info.batteryRemain !== undefined ? info.batteryRemain + "%" : "—"})</span>
+        </div>
+
+        <h3 class="group-heading">Memory</h3>
+        <div class="specs">
           <span class="spec"><b>Slot 1</b>${info.mediaSlot1Remaining !== undefined ? info.mediaSlot1Remaining + " shots" : "—"}</span>
           <span class="spec"><b>Slot 2</b>${info.mediaSlot2Remaining !== undefined ? info.mediaSlot2Remaining + " shots" : "—"}</span>
         </div>
       `;
     }
 
-    // The API's read-side white balance names (e.g. "Color Temp/Filter",
+    // The API's read-side white balance names (e.g. "Color Temp",
     // the various Fluorescent_* variants, Custom slots) don't all line up
     // 1:1 with the write-side names the <select> above offers -- this maps
     // a read-back name onto the closest editable mode. Custom/Underwater
@@ -552,7 +540,7 @@
       "Tungsten": "Tungsten", "Fluorescent": "Fluorescent",
       "Fluorescent (Warm White)": "Fluorescent", "Fluorescent (Cool White)": "Fluorescent",
       "Fluorescent (Day White)": "Fluorescent", "Fluorescent (Daylight)": "Fluorescent",
-      "Flash": "Flash", "Color Temp/Filter": "ColorTemp",
+      "Flash": "Flash", "Color Temp": "ColorTemp",
       "Custom 1": "AWB", "Custom 2": "AWB", "Custom 3": "AWB", "Custom": "AWB",
       "Underwater Auto": "AWB",
     };
@@ -578,6 +566,8 @@
       document.getElementById("wbMode").value = wbModeFromReadName[recipe.whiteBalanceMode] || "AWB";
       if (recipe.whiteBalanceColorTempK !== undefined) document.getElementById("wbColorTempK").value = recipe.whiteBalanceColorTempK;
       if (recipe.iso !== undefined) document.getElementById("iso").value = recipe.iso;
+      if (recipe.aspectRatio !== undefined) document.getElementById("aspectRatio").value = recipe.aspectRatio;
+      if (recipe.fileType !== undefined) document.getElementById("fileType").value = recipe.fileType;
       curveState = {
         contrast: recipe.contrast || 0,
         highlights: recipe.highlights || 0,
@@ -596,9 +586,12 @@
       applyRecipeToCustomForm();
     }
 
-    async function pushRecipe() {
+    // Reads the Custom tab's current form/UI state into a plain recipe
+    // object -- shared by the "Save" (push to camera) and "Save Recipe"
+    // (write to a Saved Recipes slot) actions so they can't drift apart.
+    function buildRecipeBody() {
       const presetEl = document.getElementById("preset");
-      if (!presetEl) return; // Custom tab isn't showing -- nothing to push
+      if (!presetEl) return null; // Custom tab isn't showing
       const body = { preset: presetEl.value };
       for (const [key] of fields) {
         body[key] = parseInt(document.getElementById(key).value, 10);
@@ -613,6 +606,14 @@
       body.colorFilterGM = (latestRecipe && latestRecipe.colorFilterGM) || 0;
       const isoVal = document.getElementById("iso").value;
       body.iso = isoVal === "Auto" ? "Auto" : parseInt(isoVal, 10);
+      body.aspectRatio = document.getElementById("aspectRatio").value;
+      body.fileType = document.getElementById("fileType").value;
+      return body;
+    }
+
+    async function pushRecipe() {
+      const body = buildRecipeBody();
+      if (!body) return;
       const r = await api("/api/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -621,8 +622,44 @@
       if (!r.success) alert("Push failed: " + r.error);
     }
 
-    function saveAsNewRecipe() {
-      alert("Recipe library isn't wired up yet -- this current camera state can be read via GET /api/recipe.");
+    async function saveAsNewRecipe() {
+      const body = buildRecipeBody();
+      if (!body) return;
+      const name = prompt("Name this recipe:");
+      if (!name) return;
+      const r = await api("/api/recipes/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, recipe: body }),
+      });
+      if (!r.success) { alert("Save failed: " + r.error); return; }
+      alert('Saved to slot ' + (r.slot + 1) + '.');
+    }
+
+    async function updateEditingSlot() {
+      if (editingRecipeSlot === null) return;
+      const body = buildRecipeBody();
+      if (!body) return;
+      const existing = savedRecipes.find((r) => r.slot === editingRecipeSlot);
+      const name = (existing && existing.name) || ("Slot " + (editingRecipeSlot + 1));
+      const r = await api("/api/recipes/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slot: editingRecipeSlot, name, recipe: body }),
+      });
+      if (!r.success) { alert("Update failed: " + r.error); return; }
+      alert('Updated slot ' + (editingRecipeSlot + 1) + '.');
+      editingRecipeSlot = null;
+      activeTab = SAVED_RECIPES_TAB;
+      renderTabs();
+      renderTabContent();
+    }
+
+    function cancelEditingSlot() {
+      editingRecipeSlot = null;
+      activeTab = SAVED_RECIPES_TAB;
+      renderTabs();
+      renderTabContent();
     }
 
     // Shortens the long group names from /api/presets into tab labels that
@@ -631,16 +668,19 @@
     // logs), this is purely a display trim for the tab bar.
     const groupTabLabels = {
       "Film Recipe Chart": "Film Recipes",
-      "Fujifilm Simulation": "Fujifilm Sims",
-      "JP Presets — Daily Collection": "JP Presets",
-      "PS Presets": "PS Presets",
-      "Micro Four Nerds": "Micro Four Nerds",
     };
 
     const SETUP_TAB = "__setup__";
     const CUSTOM_TAB = "__custom__";
+    const SAVED_RECIPES_TAB = "__saved__";
     let presetGroups = new Map();
     let activeTab = CUSTOM_TAB;
+    let savedRecipes = [];
+    // When set (by "Edit" on a Saved Recipes card), the Custom tab loads this
+    // recipe instead of pulling from the camera, and shows an "Update Slot"
+    // button that writes back to this slot number instead of "Save Recipe".
+    let pendingRecipeLoad = null;
+    let editingRecipeSlot = null;
 
     async function loadPresets() {
       const presets = await api("/api/presets");
@@ -657,10 +697,10 @@
     function renderTabs() {
       const tabsEl = document.getElementById("mainTabs");
       tabsEl.innerHTML = "";
-      const tabKeys = [CUSTOM_TAB, ...presetGroups.keys(), SETUP_TAB];
+      const tabKeys = [CUSTOM_TAB, ...presetGroups.keys(), SAVED_RECIPES_TAB, SETUP_TAB];
       for (const key of tabKeys) {
         const btn = document.createElement("button");
-        btn.textContent = key === SETUP_TAB ? "Setup" : key === CUSTOM_TAB ? "Custom" : (groupTabLabels[key] || key);
+        btn.textContent = key === SETUP_TAB ? "Setup" : key === CUSTOM_TAB ? "Custom" : key === SAVED_RECIPES_TAB ? "Saved Recipes" : (groupTabLabels[key] || key);
         btn.className = key === activeTab ? "active" : "";
         btn.addEventListener("click", () => {
           activeTab = key;
@@ -694,7 +734,18 @@
             <button class="primary" onclick="connectNetwork()">Connect</button>
             <button class="small" onclick="saveQuickConnect()">Save as Quick Connect</button>
           </div>
-          <div id="cameraInfo"></div>
+          <div id="cameraInfo" style="margin-top:20px;"></div>
+
+          <div class="footer">
+            <button class="danger" onclick="toggleConfirm()">Shut Down Pi</button>
+            <div class="confirm" id="confirm">
+              This will cleanly power off the Pi. You'll need to unplug and replug power (or press its power button, if wired) to turn it back on.
+              <div class="actions">
+                <button class="danger" onclick="shutdownPi()">Confirm Shutdown</button>
+                <button onclick="toggleConfirm()">Cancel</button>
+              </div>
+            </div>
+          </div>
         `;
         loadSavedCameras();
         loadCameraInfo();
@@ -705,7 +756,7 @@
         container.innerHTML = `
           <div class="row">
             <label>Preset</label>
-            <select id="preset" onchange="pushRecipe()">
+            <select id="preset">
               <option value="ST">Standard</option>
               <option value="PT">Portrait</option>
               <option value="NT">Neutral</option>
@@ -734,7 +785,7 @@
             <div class="tone-curve-readout" id="toneCurveReadout">Contrast 0 &middot; Highlights 0 &middot; Shadows 0 &middot; Blacks/Fade 0</div>
             <div class="row">
               <label>Contrast</label>
-              <input type="range" id="contrastSlider" min="-9" max="9" value="0" oninput="onContrastSliderInput()" onchange="pushRecipe()">
+              <input type="range" id="contrastSlider" min="-9" max="9" value="0" oninput="onContrastSliderInput()">
             </div>
             <div class="tone-curve-hint">Drag the white dots on the curve to adjust Blacks/Fade, Shadows, and Highlights. Contrast bends the whole curve.</div>
             <div class="actions tone-curve-presets">
@@ -754,7 +805,7 @@
           <h3 class="group-heading">White Balance</h3>
           <div class="row">
             <label>Mode</label>
-            <select id="wbMode" onchange="pushRecipe()">
+            <select id="wbMode">
               <option value="AWB">AWB</option>
               <option value="Daylight">Daylight</option>
               <option value="Shade">Shade</option>
@@ -762,12 +813,12 @@
               <option value="Tungsten">Tungsten</option>
               <option value="Fluorescent">Fluorescent</option>
               <option value="Flash">Flash</option>
-              <option value="ColorTemp">Color Temp/Filter</option>
+              <option value="ColorTemp">Color Temp</option>
             </select>
           </div>
           <div class="row">
             <label>Color Temp (K)</label>
-            <input type="number" id="wbColorTempK" min="2500" max="9900" step="100" onchange="pushRecipe()">
+            <input type="number" id="wbColorTempK" min="2500" max="9900" step="100">
           </div>
           <div class="wb-grid-wrap">
             <div class="wb-grid-readout" id="wbGridReadout">A-B: 0 &nbsp; G-M: 0</div>
@@ -788,7 +839,7 @@
           <h3 class="group-heading">ISO</h3>
           <div class="row">
             <label>Sensitivity</label>
-            <select id="iso" onchange="pushRecipe()">
+            <select id="iso">
               <option value="Auto">Auto</option>
               <option value="100">100</option><option value="125">125</option><option value="160">160</option>
               <option value="200">200</option><option value="250">250</option><option value="320">320</option>
@@ -803,8 +854,32 @@
             </select>
           </div>
 
+          <h3 class="group-heading">Other Settings</h3>
+          <div class="row">
+            <label>Aspect Ratio</label>
+            <select id="aspectRatio">
+              <option value="3:2">3:2</option>
+              <option value="16:9">16:9</option>
+              <option value="4:3">4:3</option>
+              <option value="1:1">1:1</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>File Type</label>
+            <select id="fileType">
+              <option value="RAW">RAW</option>
+              <option value="RAW+JPEG">RAW+JPEG</option>
+              <option value="JPEG">JPEG</option>
+            </select>
+          </div>
+
           <div class="actions">
-            <button onclick="saveAsNewRecipe()">Save Current As New Recipe</button>
+            <button onclick="refresh()">Load from Camera</button>
+            <button class="primary" onclick="pushRecipe()">Save to Camera</button>
+            ${editingRecipeSlot !== null
+              ? `<button class="primary" onclick="updateEditingSlot()">Update Slot ${editingRecipeSlot + 1}</button>
+                 <button onclick="cancelEditingSlot()">Cancel Edit</button>`
+              : `<button onclick="saveAsNewRecipe()">Save Recipe</button>`}
           </div>
         `;
         buildSliders();
@@ -813,8 +888,20 @@
         updateToneCurveReadout();
         setupWbGridInteraction();
         updateWbGridUI();
-        applyRecipeToCustomForm();
-        refresh();
+        if (pendingRecipeLoad) {
+          latestRecipe = pendingRecipeLoad;
+          pendingRecipeLoad = null;
+          applyRecipeToCustomForm();
+        } else {
+          applyRecipeToCustomForm();
+          refresh();
+        }
+        return;
+      }
+
+      if (activeTab === SAVED_RECIPES_TAB) {
+        container.innerHTML = `<div class="meta" id="savedRecipesCount"></div><div id="savedRecipesList"></div>`;
+        loadSavedRecipes();
         return;
       }
 
@@ -857,9 +944,11 @@
       }
       if (p.whiteBalanceMode) chips.push(`<span class="spec"><b>WB</b>${p.whiteBalanceMode}</span>`);
       if (p.whiteBalanceColorTempK !== undefined) chips.push(`<span class="spec"><b>Kelvin</b>${p.whiteBalanceColorTempK}K</span>`);
-      if (p.colorFilterAB) chips.push(`<span class="spec"><b>Filter A-B</b>${p.colorFilterAB > 0 ? "A" : "B"}${Math.abs(p.colorFilterAB)}</span>`);
-      if (p.colorFilterGM) chips.push(`<span class="spec"><b>Filter G-M</b>${p.colorFilterGM > 0 ? "G" : "M"}${Math.abs(p.colorFilterGM)}</span>`);
+      if (p.colorFilterAB !== undefined) chips.push(`<span class="spec"><b>Filter A-B</b>${p.colorFilterAB === 0 ? "0" : (p.colorFilterAB > 0 ? "A" : "B") + Math.abs(p.colorFilterAB)}</span>`);
+      if (p.colorFilterGM !== undefined) chips.push(`<span class="spec"><b>Filter G-M</b>${p.colorFilterGM === 0 ? "0" : (p.colorFilterGM > 0 ? "G" : "M") + Math.abs(p.colorFilterGM)}</span>`);
       if (p.iso !== undefined) chips.push(`<span class="spec"><b>ISO</b>${p.iso}</span>`);
+      if (p.aspectRatio !== undefined) chips.push(`<span class="spec"><b>Aspect</b>${p.aspectRatio}</span>`);
+      if (p.fileType !== undefined) chips.push(`<span class="spec"><b>File Type</b>${p.fileType}</span>`);
       return chips.length ? `<div class="specs">${chips.join("")}</div>` : "";
     }
 
@@ -884,6 +973,117 @@
       });
       if (!r.success) { alert("Push failed: " + r.error); return; }
       await refresh();
+    }
+
+    // Builds the same "ISO 400 · Color Filter A+1 G+1" style meta line the
+    // Film Recipes cards show (there, it's hand-authored per preset from
+    // the source data sheet) -- computed here from a saved recipe's actual
+    // iso/colorFilterAB/colorFilterGM fields so both card types read the
+    // same way.
+    function buildRecipeMetaLine(recipe) {
+      const parts = [];
+      if (recipe.iso !== undefined) parts.push("ISO " + recipe.iso);
+      const ab = recipe.colorFilterAB || 0;
+      const gm = recipe.colorFilterGM || 0;
+      if (ab === 0 && gm === 0) {
+        parts.push("No Color Filter");
+      } else {
+        const filterParts = [];
+        if (ab !== 0) filterParts.push((ab > 0 ? "A+" : "B+") + Math.abs(ab));
+        if (gm !== 0) filterParts.push((gm > 0 ? "G+" : "M+") + Math.abs(gm));
+        parts.push("Color Filter " + filterParts.join(" "));
+      }
+      return parts.join(" &middot; ");
+    }
+
+    async function loadSavedRecipes() {
+      savedRecipes = await api("/api/recipes/saved");
+      if (!Array.isArray(savedRecipes)) savedRecipes = [];
+      renderSavedRecipes();
+    }
+
+    function renderSavedRecipes() {
+      const countEl = document.getElementById("savedRecipesCount");
+      const listEl = document.getElementById("savedRecipesList");
+      if (!countEl || !listEl) return; // tab isn't showing anymore
+      countEl.textContent = savedRecipes.length + " of 10 slots used";
+      listEl.innerHTML = "";
+      const bySlot = new Map(savedRecipes.map((r) => [r.slot, r]));
+      for (let slot = 0; slot < 10; slot++) {
+        const entry = bySlot.get(slot);
+        const card = document.createElement("div");
+        card.className = "card";
+        if (entry) {
+          const recipe = entry.recipe || {};
+          card.innerHTML = `
+            <div class="card-head">
+              <span class="name">${entry.name}</span>
+              <span class="look">${(presetNames[recipe.preset] || recipe.preset || "Custom") + " &middot; Slot " + (slot + 1)}</span>
+            </div>
+            <div class="meta">${buildRecipeMetaLine(recipe)}</div>
+            ${buildSpecsHtml(recipe)}
+            <div class="actions">
+              <button class="small primary" data-act="load">Load to Camera</button>
+              <button class="small" data-act="edit">Edit</button>
+              <button class="small" data-act="rename">Rename</button>
+              <button class="small" data-act="delete">Delete</button>
+            </div>
+          `;
+          card.querySelector('[data-act="load"]').addEventListener("click", () => loadSlotToCamera(entry));
+          card.querySelector('[data-act="edit"]').addEventListener("click", () => editSlotInCustomTab(slot, entry));
+          card.querySelector('[data-act="rename"]').addEventListener("click", () => renameSlot(slot, entry.name));
+          card.querySelector('[data-act="delete"]').addEventListener("click", () => deleteSlot(slot, entry.name));
+        } else {
+          card.innerHTML = `
+            <div class="card-head">
+              <span class="name">Empty</span>
+              <span class="look">Slot ${slot + 1}</span>
+            </div>
+          `;
+        }
+        listEl.appendChild(card);
+      }
+    }
+
+    async function loadSlotToCamera(entry) {
+      const r = await api("/api/recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entry.recipe),
+      });
+      if (!r.success) { alert("Push failed: " + r.error); return; }
+      alert('"' + entry.name + '" sent to camera.');
+    }
+
+    function editSlotInCustomTab(slot, entry) {
+      pendingRecipeLoad = entry.recipe;
+      editingRecipeSlot = slot;
+      activeTab = CUSTOM_TAB;
+      renderTabs();
+      renderTabContent();
+    }
+
+    async function renameSlot(slot, currentName) {
+      const name = prompt("Rename recipe:", currentName);
+      if (!name || name === currentName) return;
+      const r = await api("/api/recipes/rename", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slot, name }),
+      });
+      if (!r.success) { alert("Rename failed: " + r.error); return; }
+      await loadSavedRecipes();
+    }
+
+    async function deleteSlot(slot, name) {
+      if (!confirm('Delete "' + name + '"?')) return;
+      const r = await api("/api/recipes/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slot }),
+      });
+      if (!r.success) { alert("Delete failed: " + r.error); return; }
+      await loadSavedRecipes();
     }
 
     function toggleConfirm() {

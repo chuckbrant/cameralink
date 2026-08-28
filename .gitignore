@@ -8,6 +8,9 @@ third_party/CrSDK/
 # committed. See server/saved_cameras.json.example for the format.
 server/saved_cameras.json
 
+# User's Saved Recipes library -- local runtime state, not source.
+server/saved_recipes.json
+
 # Build output
 server/build/
 *.o

@@ -26,11 +26,18 @@ namespace SDK = SCRSDK;
 
 // ---------------------------------------------------------------------
 // Built-in film recipe presets, transcribed from film_recipe_charts.pdf
-// (page 3, "Film Recipe Chart -- Sony a7R V"). Base ISO and the Color
-// Filter A/G white-balance offsets are shown as reference notes only --
-// not written to the camera, since those property encodings haven't been
-// verified against a real camera yet (unlike Creative Look + WB mode,
-// which have).
+// (page 3, "Film Recipe Chart -- Sony a7R V"). Every field here is
+// confirmed writable and does get applied (Creative Look, WB mode/Kelvin,
+// Color Filter A-B/G-M via colorFilterAB/colorFilterGM, ISO). "Base ISO"
+// is shown as an informational note only (the film stock's real-world
+// ISO rating, not a camera property).
+//
+// Other approximated preset packs (Fujifilm Simulation, JP/PS Presets,
+// Micro Four Nerds -- all ported from a companion app's Lightroom/
+// CoreImage grades) were removed: they were never going to reproduce a
+// Lightroom edit through Sony's 8 Creative Look knobs convincingly, and
+// were replaced by a user-managed Saved Recipes library instead (see
+// GET/POST /api/recipes/*).
 // ---------------------------------------------------------------------
 const char* kPresetsJson = R"JSON([
   {
@@ -137,262 +144,11 @@ const char* kPresetsJson = R"JSON([
     "name": "Vision3 500T",
     "preset": "CS1",
     "contrast": -3, "highlights": -3, "shadows": 2, "fade": 3, "saturation": -2,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 5900, "whiteBalanceTint": -16,
+    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 5900,
     "notes": "Approximated from the iPadPhotoFilters CoreImage grade (tungsten cinema stock, desaturated, lifted blacks). Pushes to Custom Look CS1."
-  },
-
-  {
-    "group": "Fujifilm Simulation",
-    "id": "fujisim-provia",
-    "name": "Provia",
-    "preset": "CS1",
-    "contrast": 1, "highlights": -1, "shadows": 0, "fade": 0, "saturation": 2,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6500, "whiteBalanceTint": 0,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (natural, minimal grade). Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Fujifilm Simulation",
-    "id": "fujisim-velvia",
-    "name": "Velvia",
-    "preset": "CS1",
-    "contrast": 5, "highlights": 0, "shadows": 0, "fade": 2, "saturation": 9,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6400, "whiteBalanceTint": 0,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (heavy saturation/contrast landscape stock). Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Fujifilm Simulation",
-    "id": "fujisim-astia",
-    "name": "Astia",
-    "preset": "CS1",
-    "contrast": -3, "highlights": -3, "shadows": 1, "fade": 3, "saturation": 2,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6650, "whiteBalanceTint": 16,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (soft portrait profile). Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Fujifilm Simulation",
-    "id": "fujisim-classic-chrome",
-    "name": "Classic Chrome",
-    "preset": "CS1",
-    "contrast": 4, "highlights": -2, "shadows": -1, "fade": 5, "saturation": -4,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6450, "whiteBalanceTint": 0,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (muted, documentary contrast). Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Fujifilm Simulation",
-    "id": "fujisim-reala-ace",
-    "name": "Reala Ace",
-    "preset": "CS1",
-    "contrast": 3, "highlights": -1, "shadows": -1, "fade": 1, "saturation": 2,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6500, "whiteBalanceTint": 0,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (faithful color, harder tonality). Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Fujifilm Simulation",
-    "id": "fujisim-pro-neg-hi",
-    "name": "Pro Neg. Hi",
-    "preset": "CS1",
-    "contrast": 4, "highlights": -1, "shadows": 0, "fade": 2, "saturation": 5,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6600, "whiteBalanceTint": 16,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (studio portrait, enhanced contrast). Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Fujifilm Simulation",
-    "id": "fujisim-pro-neg-std",
-    "name": "Pro Neg. Std",
-    "preset": "CS1",
-    "contrast": -1, "highlights": -2, "shadows": 1, "fade": 2, "saturation": 3,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6650, "whiteBalanceTint": 24,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (soft transitional skin tones). Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Fujifilm Simulation",
-    "id": "fujisim-classic-neg",
-    "name": "Classic Neg",
-    "preset": "CS1",
-    "contrast": 5, "highlights": -2, "shadows": -1, "fade": 4, "saturation": 3,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6700, "whiteBalanceTint": -64,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (vintage color-negative, green/brown skew). Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Fujifilm Simulation",
-    "id": "fujisim-nostalgic-neg",
-    "name": "Nostalgic Neg",
-    "preset": "CS1",
-    "contrast": 1, "highlights": -4, "shadows": 0, "fade": 6, "saturation": 3,
-    "whiteBalanceMode": "ColorTemp", "whiteBalanceColorTempK": 6900, "whiteBalanceTint": 48,
-    "notes": "Approximated from the iPadPhotoFilters CoreImage grade (amber highlights, 1970s print look). Pushes to Custom Look CS1."
-  },
-
-  {
-    "group": "JP Presets — Daily Collection",
-    "id": "jp-washed-green",
-    "name": "Washed Green",
-    "preset": "CS1",
-    "contrast": 0, "highlights": -6, "shadows": 5, "fade": 3, "saturation": -2,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "JP Presets — Daily Collection",
-    "id": "jp-punch",
-    "name": "Punch",
-    "preset": "CS1",
-    "contrast": 0, "highlights": -9, "shadows": 9, "fade": 1, "saturation": -2,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "JP Presets — Daily Collection",
-    "id": "jp-light-and-dreamy",
-    "name": "Light & Dreamy",
-    "preset": "CS1",
-    "contrast": 0, "highlights": 0, "shadows": 4, "fade": 5, "saturation": -2,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "JP Presets — Daily Collection",
-    "id": "jp-muted",
-    "name": "Muted",
-    "preset": "CS1",
-    "contrast": 0, "highlights": 3, "shadows": 7, "fade": 3, "saturation": -2,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "JP Presets — Daily Collection",
-    "id": "jp-bright-whites",
-    "name": "Bright Whites",
-    "preset": "CS1",
-    "contrast": 0, "highlights": -4, "shadows": 9, "fade": 1, "saturation": -2,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "JP Presets — Daily Collection",
-    "id": "jp-washed-orange",
-    "name": "Washed Orange",
-    "preset": "CS1",
-    "contrast": 0, "highlights": -7, "shadows": 8, "fade": 3, "saturation": -2,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "JP Presets — Daily Collection",
-    "id": "jp-dark-and-moody",
-    "name": "Dark & Moody",
-    "preset": "CS1",
-    "contrast": 0, "highlights": -5, "shadows": 5, "fade": 1, "saturation": -2,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "JP Presets — Daily Collection",
-    "id": "jp-high-key",
-    "name": "High Key",
-    "preset": "CS1",
-    "contrast": 0, "highlights": -6, "shadows": 8, "fade": 4, "saturation": 0,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "JP Presets — Daily Collection",
-    "id": "jp-neutral",
-    "name": "Neutral",
-    "preset": "CS1",
-    "contrast": 0, "highlights": -9, "shadows": 7, "fade": 5, "saturation": -2,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "JP Presets — Daily Collection",
-    "id": "jp-heavy-contrast",
-    "name": "Heavy Contrast",
-    "preset": "CS1",
-    "contrast": 0, "highlights": -2, "shadows": 6, "fade": 2, "saturation": -2,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and tone-curve work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-
-  {
-    "group": "PS Presets",
-    "id": "ps-1c2m",
-    "name": "1C2M",
-    "preset": "CS1",
-    "contrast": 0, "highlights": -5, "shadows": 0, "fade": 2, "saturation": 0,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Micro Four Nerds",
-    "id": "ps-bluer-hues",
-    "name": "Bluer Hues",
-    "preset": "CS1",
-    "contrast": 3, "highlights": -8, "shadows": 9, "fade": 3, "saturation": 1,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Micro Four Nerds",
-    "id": "ps-classy",
-    "name": "Classy",
-    "preset": "CS1",
-    "contrast": -2, "highlights": -3, "shadows": 1, "fade": 6, "saturation": 0,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Micro Four Nerds",
-    "id": "ps-faded",
-    "name": "Faded",
-    "preset": "CS1",
-    "contrast": 6, "highlights": -4, "shadows": 7, "fade": 5, "saturation": 0,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Micro Four Nerds",
-    "id": "ps-greens",
-    "name": "Greens",
-    "preset": "CS1",
-    "contrast": -2, "highlights": -1, "shadows": 6, "fade": 5, "saturation": 0,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Micro Four Nerds",
-    "id": "ps-summer-vibes",
-    "name": "Summer Vibes",
-    "preset": "CS1",
-    "contrast": -3, "highlights": -4, "shadows": 7, "fade": 5, "saturation": -1,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Micro Four Nerds",
-    "id": "ps-everything",
-    "name": "Everything",
-    "preset": "CS1",
-    "contrast": -5, "highlights": -5, "shadows": 3, "fade": 6, "saturation": -1,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Micro Four Nerds",
-    "id": "ps-liverbuilding",
-    "name": "Liverbuilding",
-    "preset": "CS1",
-    "contrast": -2, "highlights": -6, "shadows": 7, "fade": 5, "saturation": 0,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Micro Four Nerds",
-    "id": "ps-wedding",
-    "name": "Wedding",
-    "preset": "CS1",
-    "contrast": -5, "highlights": -6, "shadows": 3, "fade": 2, "saturation": 0,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Micro Four Nerds",
-    "id": "ps-wedding-boost",
-    "name": "Wedding Boost",
-    "preset": "CS1",
-    "contrast": -5, "highlights": -9, "shadows": 6, "fade": 2, "saturation": 1,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
-  },
-  {
-    "group": "Micro Four Nerds",
-    "id": "ps-landscapes",
-    "name": "Landscapes",
-    "preset": "CS1",
-    "contrast": -3, "highlights": -6, "shadows": 5, "fade": 2, "saturation": 0,
-    "notes": "Approximated from a Lightroom preset's Basic-panel values only -- its HSL band and split-toning work has no in-camera equivalent. Pushes to Custom Look CS1."
   }
 ])JSON";
+
 
 // ---------------------------------------------------------------------
 // Camera session state (single global session -- one camera at a time)
@@ -624,7 +380,7 @@ std::string whiteBalanceModeName(CrInt64u raw) {
         case SDK::CrWhiteBalance_Fluorescent_DayWhite: return "Fluorescent (Day White)";
         case SDK::CrWhiteBalance_Fluorescent_Daylight: return "Fluorescent (Daylight)";
         case SDK::CrWhiteBalance_Flush: return "Flash";
-        case SDK::CrWhiteBalance_ColorTemp: return "Color Temp/Filter";
+        case SDK::CrWhiteBalance_ColorTemp: return "Color Temp";
         case SDK::CrWhiteBalance_Custom_1: return "Custom 1";
         case SDK::CrWhiteBalance_Custom_2: return "Custom 2";
         case SDK::CrWhiteBalance_Custom_3: return "Custom 3";
@@ -645,32 +401,6 @@ CrInt64u whiteBalanceModeRaw(const std::string& name) {
     return SDK::CrWhiteBalance_AWB;
 }
 
-// DRO's manual levels only go up to 5 on this camera's own menu (Off/Auto/
-// Manual 1-5) -- the SDK enum goes further (Manual 6-8, HDR variants) but
-// those are for a different HDR shooting mode, not exposed here.
-std::string droName(CrInt64u raw) {
-    switch (raw) {
-        case SDK::CrDRangeOptimizer_Off: return "Off";
-        case SDK::CrDRangeOptimizer_On: return "Auto";
-        case SDK::CrDRangeOptimizer_Plus_Manual_1: return "Manual 1";
-        case SDK::CrDRangeOptimizer_Plus_Manual_2: return "Manual 2";
-        case SDK::CrDRangeOptimizer_Plus_Manual_3: return "Manual 3";
-        case SDK::CrDRangeOptimizer_Plus_Manual_4: return "Manual 4";
-        case SDK::CrDRangeOptimizer_Plus_Manual_5: return "Manual 5";
-        default: return "Off";
-    }
-}
-CrInt64u droRaw(const std::string& name) {
-    if (name == "Off") return SDK::CrDRangeOptimizer_Off;
-    if (name == "Auto") return SDK::CrDRangeOptimizer_On;
-    if (name == "Manual 1") return SDK::CrDRangeOptimizer_Plus_Manual_1;
-    if (name == "Manual 2") return SDK::CrDRangeOptimizer_Plus_Manual_2;
-    if (name == "Manual 3") return SDK::CrDRangeOptimizer_Plus_Manual_3;
-    if (name == "Manual 4") return SDK::CrDRangeOptimizer_Plus_Manual_4;
-    if (name == "Manual 5") return SDK::CrDRangeOptimizer_Plus_Manual_5;
-    return SDK::CrDRangeOptimizer_Off;
-}
-
 std::string aspectRatioName(CrInt64u raw) {
     switch (raw) {
         case SDK::CrAspectRatio_3_2: return "3:2";
@@ -688,24 +418,21 @@ CrInt64u aspectRatioRaw(const std::string& name) {
     return SDK::CrAspectRatio_3_2;
 }
 
-// The SDK enum also defines CrHighIsoNR_High, but the real a7R V menu (and
-// this camera's own responses, confirmed by setting each value by hand on
-// the physical camera and reading it back) only has Off/Low/Normal --
-// "High" isn't a real option on this body, so it's deliberately omitted
-// here rather than offered as a value that silently no-ops.
-std::string highIsoNrName(CrInt64u raw) {
+// Only the three most common file types are offered here (RawHeif/Heif
+// omitted). All three confirmed working live -- see writeRecipeJson.
+std::string fileTypeName(CrInt64u raw) {
     switch (raw) {
-        case SDK::CrHighIsoNR_Off: return "Off";
-        case SDK::CrHighIsoNR_Low: return "Low";
-        case SDK::CrHighIsoNR_Normal: return "Normal";
-        default: return "Normal";
+        case SDK::CrFileType_Raw: return "RAW";
+        case SDK::CrFileType_RawJpeg: return "RAW+JPEG";
+        case SDK::CrFileType_Jpeg: return "JPEG";
+        default: return "RAW";
     }
 }
-CrInt64u highIsoNrRaw(const std::string& name) {
-    if (name == "Off") return SDK::CrHighIsoNR_Off;
-    if (name == "Low") return SDK::CrHighIsoNR_Low;
-    if (name == "Normal") return SDK::CrHighIsoNR_Normal;
-    return SDK::CrHighIsoNR_Normal;
+CrInt64u fileTypeRaw(const std::string& name) {
+    if (name == "RAW") return SDK::CrFileType_Raw;
+    if (name == "RAW+JPEG") return SDK::CrFileType_RawJpeg;
+    if (name == "JPEG") return SDK::CrFileType_Jpeg;
+    return SDK::CrFileType_Raw;
 }
 
 // ---------------------------------------------------------------------
@@ -797,6 +524,101 @@ std::string serializeSavedCameras(const std::vector<std::map<std::string, std::s
     }
     json << "]\n";
     return json.str();
+}
+
+// ---------------------------------------------------------------------
+// Saved Recipes -- a 10-slot, user-managed library (separate from the
+// built-in film-chart presets above). Recipe payloads are kept as
+// opaque JSON blobs rather than parsed field-by-field: the frontend
+// already knows the exact shape of a "recipe" (whatever the Custom tab
+// currently supports -- Creative Look fields, WB, ISO, DRO, etc.), so
+// the backend just stores/returns that JSON verbatim under a slot
+// number and a name, doing text-level surgery (brace-matching) for
+// create/rename/delete rather than needing a real JSON parser.
+// ---------------------------------------------------------------------
+
+// Returns the raw substring of a JSON object value for `key` (from its
+// opening '{' through its matching closing '}'), or "" if not found.
+std::string jsonFindRawObject(const std::string& body, const std::string& key) {
+    std::string needle = "\"" + key + "\"";
+    size_t pos = body.find(needle);
+    if (pos == std::string::npos) return "";
+    pos = body.find(':', pos);
+    if (pos == std::string::npos) return "";
+    pos = body.find('{', pos);
+    if (pos == std::string::npos) return "";
+    size_t start = pos;
+    int depth = 1;
+    size_t i = pos + 1;
+    while (i < body.size() && depth > 0) {
+        if (body[i] == '{') depth++;
+        else if (body[i] == '}') depth--;
+        i++;
+    }
+    return body.substr(start, i - start);
+}
+
+// Spans of each top-level {...} object within a JSON array's text.
+std::vector<std::pair<size_t, size_t>> findTopLevelObjectSpans(const std::string& content) {
+    std::vector<std::pair<size_t, size_t>> spans;
+    size_t pos = 0;
+    while (true) {
+        size_t start = content.find('{', pos);
+        if (start == std::string::npos) break;
+        int depth = 1;
+        size_t i = start + 1;
+        while (i < content.size() && depth > 0) {
+            if (content[i] == '{') depth++;
+            else if (content[i] == '}') depth--;
+            i++;
+        }
+        spans.push_back({start, i});
+        pos = i;
+    }
+    return spans;
+}
+
+std::string readJsonArrayFile(const std::string& path) {
+    std::ifstream f(path);
+    if (!f) return "[]";
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    std::string content = ss.str();
+    return content.empty() ? "[]" : content;
+}
+
+void writeJsonArrayFile(const std::string& path, const std::string& content) {
+    std::ofstream f(path);
+    f << content;
+}
+
+int extractSlotNumber(const std::string& obj) {
+    double v;
+    if (jsonFindNumber(obj, "slot", v)) return (int)v;
+    return -1;
+}
+
+// Removes the top-level object (plus one adjacent comma, so the array
+// stays valid) whose "slot" matches, if present. Returns true if found.
+bool removeSavedRecipeSlot(std::string& content, int targetSlot) {
+    auto spans = findTopLevelObjectSpans(content);
+    for (auto it = spans.rbegin(); it != spans.rend(); ++it) {
+        std::string objStr = content.substr(it->first, it->second - it->first);
+        if (extractSlotNumber(objStr) == targetSlot) {
+            size_t eraseStart = it->first;
+            size_t eraseEnd = it->second;
+            if (eraseEnd < content.size() && content[eraseEnd] == ',') {
+                eraseEnd++;
+            } else if (eraseStart > 0) {
+                size_t back = eraseStart;
+                while (back > 0 && isspace((unsigned char)content[back - 1])) back--;
+                if (back > 0 && content[back - 1] == ',') eraseStart = back - 1;
+            }
+            content.erase(eraseStart, eraseEnd - eraseStart);
+            return true;
+        }
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------
@@ -918,9 +740,9 @@ std::string readRecipeJson() {
         SDK::CrDeviceProperty_ColorTuningAB,
         SDK::CrDeviceProperty_ColorTuningGM,
         SDK::CrDeviceProperty_IsoSensitivity,
-        SDK::CrDeviceProperty_DRO,
         SDK::CrDeviceProperty_AspectRatio,
-        SDK::CrDeviceProperty_HighIsoNR,
+        SDK::CrDeviceProperty_FileType,
+        SDK::CrDeviceProperty_Colortemp,
     };
     for (auto& f : creativeLookFields()) codes.push_back(f.code);
 
@@ -958,12 +780,12 @@ std::string readRecipeJson() {
             CrInt64u isoValue = raw & 0xFFFFFF;
             if (isoValue == SDK::CrISO_AUTO) json << "\"iso\":\"Auto\"";
             else json << "\"iso\":" << isoValue;
-        } else if (code == SDK::CrDeviceProperty_DRO) {
-            json << "\"dro\":\"" << droName(p.GetCurrentValue()) << "\"";
         } else if (code == SDK::CrDeviceProperty_AspectRatio) {
             json << "\"aspectRatio\":\"" << aspectRatioName(p.GetCurrentValue()) << "\"";
-        } else if (code == SDK::CrDeviceProperty_HighIsoNR) {
-            json << "\"highIsoNr\":\"" << highIsoNrName(p.GetCurrentValue()) << "\"";
+        } else if (code == SDK::CrDeviceProperty_FileType) {
+            json << "\"fileType\":\"" << fileTypeName(p.GetCurrentValue()) << "\"";
+        } else if (code == SDK::CrDeviceProperty_Colortemp) {
+            json << "\"whiteBalanceColorTempK\":" << decodeSigned(p);
         } else {
             for (auto& f : creativeLookFields()) {
                 if (f.code == code) { json << "\"" << f.key << "\":" << decodeSigned(p); break; }
@@ -1021,17 +843,19 @@ std::string writeRecipeJson(const std::string& body) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1200));
     }
 
+    // CrDeviceProperty_WhiteBalancePresetColorTemperature (tried originally,
+    // by name) turns out not to exist on this camera at all -- confirmed
+    // absent from the full GetDeviceProperties() dump, same dead-property
+    // pattern as WhiteBalanceTint/RGain/BGain. CrDeviceProperty_Colortemp
+    // is the real, live one (get/set-enabled, tracks the camera's actual
+    // Kelvin value).
     double colorTempK;
     if (jsonFindNumber(body, "whiteBalanceColorTempK", colorTempK)) {
         SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_WhiteBalancePresetColorTemperature);
+        prop.SetCode(SDK::CrDeviceProperty_Colortemp);
         prop.SetValueType(SDK::CrDataType_UInt16);
         prop.SetCurrentValue((CrInt64u)(int64_t)colorTempK);
         SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        // Non-fatal: manual Kelvin color temp isn't reliably settable over
-        // this connection path on this camera (unresolved -- see project
-        // memory). Log it, but don't abort the rest of the recipe write
-        // (e.g. ISO, which comes after this in write order).
         if (err) fprintf(stderr, "[writeRecipeJson] color temp not applied (0x%x)\n", err);
     }
 
@@ -1086,16 +910,6 @@ std::string writeRecipeJson(const std::string& body) {
         if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set ISO 0x%x", err); return buf; }
     }
 
-    std::string droStr;
-    if (jsonFindString(body, "dro", droStr)) {
-        SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_DRO);
-        prop.SetValueType(SDK::CrDataType_UInt16);
-        prop.SetCurrentValue(droRaw(droStr));
-        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set DRO 0x%x", err); return buf; }
-    }
-
     std::string aspectRatioStr;
     if (jsonFindString(body, "aspectRatio", aspectRatioStr)) {
         SDK::CrDeviceProperty prop;
@@ -1106,14 +920,20 @@ std::string writeRecipeJson(const std::string& body) {
         if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set Aspect Ratio 0x%x", err); return buf; }
     }
 
-    std::string highIsoNrStr;
-    if (jsonFindString(body, "highIsoNr", highIsoNrStr)) {
+    // Confirmed working live against the real camera for all three values
+    // (RAW/JPEG/RAW+JPEG), each round-tripped by hand: set here, then
+    // verified via /api/debug/allprops that the camera's own raw value
+    // actually changed (1/2/3 respectively). CrDataType_UInt8, not UInt16 --
+    // UInt16 silently no-oped despite CrFileType's underlying type being
+    // CrInt16u.
+    std::string fileTypeStr;
+    if (jsonFindString(body, "fileType", fileTypeStr)) {
         SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_HighIsoNR);
+        prop.SetCode(SDK::CrDeviceProperty_FileType);
         prop.SetValueType(SDK::CrDataType_UInt8);
-        prop.SetCurrentValue(highIsoNrRaw(highIsoNrStr));
+        prop.SetCurrentValue(fileTypeRaw(fileTypeStr));
         SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set High ISO NR 0x%x", err); return buf; }
+        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set File Type 0x%x", err); return buf; }
     }
 
     return "";
@@ -1187,6 +1007,7 @@ int main() {
         std::vector<CrInt32u> codes = {
             SDK::CrDeviceProperty_ModelName,
             SDK::CrDeviceProperty_BodySerialNumber,
+            SDK::CrDeviceProperty_SoftwareVersion,
             SDK::CrDeviceProperty_LensModelName,
             SDK::CrDeviceProperty_LensVersionNumber,
             SDK::CrDeviceProperty_BatteryLevel,
@@ -1212,6 +1033,8 @@ int main() {
                 json << "\"modelName\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
             } else if (code == SDK::CrDeviceProperty_BodySerialNumber) {
                 json << "\"bodySerialNumber\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
+            } else if (code == SDK::CrDeviceProperty_SoftwareVersion) {
+                json << "\"softwareVersion\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
             } else if (code == SDK::CrDeviceProperty_LensModelName) {
                 json << "\"lensModelName\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
             } else if (code == SDK::CrDeviceProperty_LensVersionNumber) {
@@ -1319,6 +1142,107 @@ int main() {
         }
         std::ofstream outFile("saved_cameras.json");
         outFile << serializeSavedCameras(cams);
+        res.set_content("{\"success\":true}", "application/json");
+    });
+
+    // Saved Recipes CRUD -- 10 user-managed slots, see the comment above
+    // parseSavedCameras/jsonFindRawObject for why recipe payloads are
+    // stored opaquely rather than parsed field-by-field.
+    svr.Get("/api/recipes/saved", [](const httplib::Request&, httplib::Response& res) {
+        res.set_content(readJsonArrayFile("saved_recipes.json"), "application/json");
+    });
+
+    svr.Post("/api/recipes/save", [](const httplib::Request& req, httplib::Response& res) {
+        std::string name = "";
+        jsonFindString(req.body, "name", name);
+        std::string recipeRaw = jsonFindRawObject(req.body, "recipe");
+        double slotNumD;
+        bool haveSlot = jsonFindNumber(req.body, "slot", slotNumD);
+        if (name.empty() || recipeRaw.empty()) {
+            res.set_content("{\"success\":false,\"error\":\"name and recipe are required\"}", "application/json");
+            return;
+        }
+        std::string content = readJsonArrayFile("saved_recipes.json");
+        int targetSlot = haveSlot ? (int)slotNumD : -1;
+        if (targetSlot == -1) {
+            auto spans = findTopLevelObjectSpans(content);
+            std::vector<bool> used(10, false);
+            for (auto& span : spans) {
+                int s = extractSlotNumber(content.substr(span.first, span.second - span.first));
+                if (s >= 0 && s < 10) used[s] = true;
+            }
+            for (int i = 0; i < 10; i++) { if (!used[i]) { targetSlot = i; break; } }
+            if (targetSlot == -1) {
+                res.set_content("{\"success\":false,\"error\":\"all 10 slots are full\"}", "application/json");
+                return;
+            }
+        }
+        if (targetSlot < 0 || targetSlot > 9) {
+            res.set_content("{\"success\":false,\"error\":\"slot must be 0-9\"}", "application/json");
+            return;
+        }
+        removeSavedRecipeSlot(content, targetSlot);
+        std::ostringstream newObj;
+        newObj << "{\"slot\":" << targetSlot << ",\"name\":\"" << jsonEscape(name) << "\",\"recipe\":" << recipeRaw << "}";
+        size_t closeBracket = content.rfind(']');
+        if (closeBracket == std::string::npos) {
+            content = "[" + newObj.str() + "]";
+        } else {
+            bool hasContent = content.find('{') != std::string::npos;
+            content.insert(closeBracket, (hasContent ? "," : "") + newObj.str());
+        }
+        writeJsonArrayFile("saved_recipes.json", content);
+        std::ostringstream resp;
+        resp << "{\"success\":true,\"slot\":" << targetSlot << "}";
+        res.set_content(resp.str(), "application/json");
+    });
+
+    svr.Post("/api/recipes/rename", [](const httplib::Request& req, httplib::Response& res) {
+        double slotNumD;
+        std::string name;
+        if (!jsonFindNumber(req.body, "slot", slotNumD) || !jsonFindString(req.body, "name", name)) {
+            res.set_content("{\"success\":false,\"error\":\"slot and name are required\"}", "application/json");
+            return;
+        }
+        int targetSlot = (int)slotNumD;
+        std::string content = readJsonArrayFile("saved_recipes.json");
+        auto spans = findTopLevelObjectSpans(content);
+        bool found = false;
+        for (auto& span : spans) {
+            std::string objStr = content.substr(span.first, span.second - span.first);
+            if (extractSlotNumber(objStr) != targetSlot) continue;
+            size_t namePos = objStr.find("\"name\"");
+            if (namePos != std::string::npos) {
+                size_t colon = objStr.find(':', namePos);
+                size_t q1 = objStr.find('"', colon);
+                size_t q2 = objStr.find('"', q1 + 1);
+                std::string newObjStr = objStr.substr(0, q1 + 1) + jsonEscape(name) + objStr.substr(q2);
+                content.replace(span.first, span.second - span.first, newObjStr);
+                found = true;
+            }
+            break;
+        }
+        if (!found) {
+            res.set_content("{\"success\":false,\"error\":\"slot not found\"}", "application/json");
+            return;
+        }
+        writeJsonArrayFile("saved_recipes.json", content);
+        res.set_content("{\"success\":true}", "application/json");
+    });
+
+    svr.Post("/api/recipes/delete", [](const httplib::Request& req, httplib::Response& res) {
+        double slotNumD;
+        if (!jsonFindNumber(req.body, "slot", slotNumD)) {
+            res.set_content("{\"success\":false,\"error\":\"slot is required\"}", "application/json");
+            return;
+        }
+        std::string content = readJsonArrayFile("saved_recipes.json");
+        bool found = removeSavedRecipeSlot(content, (int)slotNumD);
+        if (!found) {
+            res.set_content("{\"success\":false,\"error\":\"slot not found\"}", "application/json");
+            return;
+        }
+        writeJsonArrayFile("saved_recipes.json", content);
         res.set_content("{\"success\":true}", "application/json");
     });
 

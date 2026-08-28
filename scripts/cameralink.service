@@ -1,0 +1,28 @@
+# systemd unit for cameralink -- installs the server as an always-on
+# service that survives reboots and restarts automatically on crash.
+#
+# Install:
+#   sudo cp scripts/cameralink.service /etc/systemd/system/
+#   sudo sed -i "s#__REPLACE_WITH_REPO_PATH__#$(pwd)#g; s#__REPLACE_WITH_USER__#$(whoami)#g" /etc/systemd/system/cameralink.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cameralink.service
+#
+# See docs/BUILDING.md for the full build + install flow.
+
+[Unit]
+Description=cameralink web app (Sony CrSDK camera control)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__REPLACE_WITH_USER__
+WorkingDirectory=__REPLACE_WITH_REPO_PATH__/server/build
+ExecStart=__REPLACE_WITH_REPO_PATH__/server/build/cameralink_server
+Restart=on-failure
+RestartSec=2
+StandardOutput=append:__REPLACE_WITH_REPO_PATH__/server/build/server.log
+StandardError=append:__REPLACE_WITH_REPO_PATH__/server/build/server.log
+
+[Install]
+WantedBy=multi-user.target
