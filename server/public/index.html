@@ -471,7 +471,10 @@
       });
       if (!r.success) alert("Connect failed: " + r.error);
       await pollStatus();
-      if (r.success) await refresh();
+      if (r.success) {
+        await refresh();
+        loadCameraInfo();
+      }
     }
 
     async function connectNetwork() {
@@ -494,10 +497,49 @@
       for (const cam of saved) {
         const btn = document.createElement("button");
         btn.className = "primary";
-        btn.textContent = "Connect (" + cam.name + ")";
+        btn.textContent = cam.name;
         btn.addEventListener("click", () => doConnectNetwork(cam));
         el.appendChild(btn);
       }
+    }
+
+    async function saveQuickConnect() {
+      const ip = document.getElementById("netIp").value;
+      const mac = document.getElementById("netMac").value;
+      const userId = document.getElementById("netUser").value;
+      const password = document.getElementById("netPass").value;
+      if (!ip) { alert("Enter the camera's IP address first."); return; }
+      const name = window.prompt("Name for this Quick Connect:", "Quick Connect");
+      if (!name) return;
+      const r = await api("/api/network/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, ip, mac, userId, password }),
+      });
+      if (!r.success) { alert("Save failed: " + r.error); return; }
+      loadSavedCameras();
+    }
+
+    // Camera info (battery, media slots, lens, serial) -- only meaningful
+    // once connected; shows nothing if the read fails (e.g. not
+    // connected yet) rather than an error block cluttering the tab.
+    async function loadCameraInfo() {
+      const el = document.getElementById("cameraInfo");
+      if (!el) return;
+      const info = await api("/api/camera-info");
+      if (info.error) { el.innerHTML = ""; return; }
+      el.innerHTML = `
+        <h3 class="group-heading">Camera Info</h3>
+        <div class="specs">
+          <span class="spec"><b>Model</b>${info.modelName || "—"}</span>
+          <span class="spec"><b>Serial</b>${info.bodySerialNumber || "—"}</span>
+          <span class="spec"><b>Lens</b>${info.lensModelName || "—"}</span>
+          <span class="spec"><b>Lens Ver</b>${info.lensVersionNumber || "—"}</span>
+          <span class="spec"><b>Battery</b>${info.batteryLevel || "—"} (${info.batteryRemain !== undefined ? info.batteryRemain + "%" : "—"})</span>
+          <span class="spec"><b>Slot 1</b>${info.mediaSlot1Remaining !== undefined ? info.mediaSlot1Remaining + " shots" : "—"}</span>
+          <span class="spec"><b>Slot 2</b>${info.mediaSlot2Remaining !== undefined ? info.mediaSlot2Remaining + " shots" : "—"}</span>
+        </div>
+      `;
     }
 
     // The API's read-side white balance names (e.g. "Color Temp/Filter",
@@ -650,9 +692,12 @@
             <input id="netUser" placeholder="User ID (from camera's Access Authen. Info screen)">
             <input id="netPass" placeholder="Password" type="password">
             <button class="primary" onclick="connectNetwork()">Connect</button>
+            <button class="small" onclick="saveQuickConnect()">Save as Quick Connect</button>
           </div>
+          <div id="cameraInfo"></div>
         `;
         loadSavedCameras();
+        loadCameraInfo();
         return;
       }
 

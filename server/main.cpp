@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
+#include <map>
 #include <future>
 #include <iostream>
 #include <mutex>
@@ -498,6 +499,51 @@ int64_t decodeSigned(const SDK::CrDeviceProperty& p) {
     return (int64_t)raw;
 }
 
+// CrDataType_STR properties (ModelName, BodySerialNumber, LensModelName,
+// LensVersionNumber) don't use GetCurrentValue() at all -- the string
+// lives in GetCurrentStr(), a null-terminated CrInt16u* (UTF-16). Values
+// seen so far (model names, serial numbers) are plain ASCII, so a
+// truncating per-unit cast is enough; this doesn't handle non-ASCII text.
+// The very first CrInt16u unit is a length prefix (string length including
+// the null terminator), not a character -- confirmed empirically: reading
+// this naively produced a stray leading control character whose value
+// exactly matched (real string length + 1) for both ModelName ("\n" =
+// 0x0A = len("ILCE-7RM5")+1) and BodySerialNumber ("\t" = 0x09 =
+// len("01384122")+1) on the real camera. Skip index 0.
+std::string decodeCrStr(const SDK::CrDeviceProperty& p) {
+    CrInt16u* wstr = p.GetCurrentStr();
+    if (!wstr || wstr[0] == 0) return "";
+    std::string result;
+    for (CrInt16u* c = wstr + 1; *c != 0; c++) result += (char)(*c & 0xFF);
+    return result;
+}
+
+// CrBatteryLevel is a bitfield-ish enum: a coarse level (PreEnd/1_4../3_3)
+// OR'd against a USB-power-supply offset (0x10000), plus two sentinel
+// values (Fake, BatteryNotInstalled). BatteryRemain (%) is the precise
+// number; this is just the coarse icon-level indicator.
+std::string batteryLevelName(CrInt64u raw) {
+    switch (raw) {
+        case SDK::CrBatteryLevel_PreEndBattery: return "Nearly Empty";
+        case SDK::CrBatteryLevel_1_4: return "1/4";
+        case SDK::CrBatteryLevel_2_4: return "2/4";
+        case SDK::CrBatteryLevel_3_4: return "3/4";
+        case SDK::CrBatteryLevel_4_4: return "4/4";
+        case SDK::CrBatteryLevel_1_3: return "1/3";
+        case SDK::CrBatteryLevel_2_3: return "2/3";
+        case SDK::CrBatteryLevel_3_3: return "3/3";
+        case SDK::CrBatteryLevel_USBPowerSupply: return "USB Power";
+        case SDK::CrBatteryLevel_PreEnd_PowerSupply: return "Nearly Empty (USB Power)";
+        case SDK::CrBatteryLevel_1_4_PowerSupply: return "1/4 (USB Power)";
+        case SDK::CrBatteryLevel_2_4_PowerSupply: return "2/4 (USB Power)";
+        case SDK::CrBatteryLevel_3_4_PowerSupply: return "3/4 (USB Power)";
+        case SDK::CrBatteryLevel_4_4_PowerSupply: return "4/4 (USB Power)";
+        case SDK::CrBatteryLevel_Fake: return "N/A";
+        case SDK::CrBatteryLevel_BatteryNotInstalled: return "No Battery";
+        default: return "Unknown";
+    }
+}
+
 // ColorTuningAB/ColorTuningGM calibration -- confirmed empirically against
 // the real a7R V (192=neutral, 220=A/G+7, 164=B/M-7), and matches Sony's
 // own documented raw range exactly: 0x9C(156,"B9")..0xE4(228,"A9"/"G9"),
@@ -599,6 +645,69 @@ CrInt64u whiteBalanceModeRaw(const std::string& name) {
     return SDK::CrWhiteBalance_AWB;
 }
 
+// DRO's manual levels only go up to 5 on this camera's own menu (Off/Auto/
+// Manual 1-5) -- the SDK enum goes further (Manual 6-8, HDR variants) but
+// those are for a different HDR shooting mode, not exposed here.
+std::string droName(CrInt64u raw) {
+    switch (raw) {
+        case SDK::CrDRangeOptimizer_Off: return "Off";
+        case SDK::CrDRangeOptimizer_On: return "Auto";
+        case SDK::CrDRangeOptimizer_Plus_Manual_1: return "Manual 1";
+        case SDK::CrDRangeOptimizer_Plus_Manual_2: return "Manual 2";
+        case SDK::CrDRangeOptimizer_Plus_Manual_3: return "Manual 3";
+        case SDK::CrDRangeOptimizer_Plus_Manual_4: return "Manual 4";
+        case SDK::CrDRangeOptimizer_Plus_Manual_5: return "Manual 5";
+        default: return "Off";
+    }
+}
+CrInt64u droRaw(const std::string& name) {
+    if (name == "Off") return SDK::CrDRangeOptimizer_Off;
+    if (name == "Auto") return SDK::CrDRangeOptimizer_On;
+    if (name == "Manual 1") return SDK::CrDRangeOptimizer_Plus_Manual_1;
+    if (name == "Manual 2") return SDK::CrDRangeOptimizer_Plus_Manual_2;
+    if (name == "Manual 3") return SDK::CrDRangeOptimizer_Plus_Manual_3;
+    if (name == "Manual 4") return SDK::CrDRangeOptimizer_Plus_Manual_4;
+    if (name == "Manual 5") return SDK::CrDRangeOptimizer_Plus_Manual_5;
+    return SDK::CrDRangeOptimizer_Off;
+}
+
+std::string aspectRatioName(CrInt64u raw) {
+    switch (raw) {
+        case SDK::CrAspectRatio_3_2: return "3:2";
+        case SDK::CrAspectRatio_16_9: return "16:9";
+        case SDK::CrAspectRatio_4_3: return "4:3";
+        case SDK::CrAspectRatio_1_1: return "1:1";
+        default: return "3:2";
+    }
+}
+CrInt64u aspectRatioRaw(const std::string& name) {
+    if (name == "3:2") return SDK::CrAspectRatio_3_2;
+    if (name == "16:9") return SDK::CrAspectRatio_16_9;
+    if (name == "4:3") return SDK::CrAspectRatio_4_3;
+    if (name == "1:1") return SDK::CrAspectRatio_1_1;
+    return SDK::CrAspectRatio_3_2;
+}
+
+// The SDK enum also defines CrHighIsoNR_High, but the real a7R V menu (and
+// this camera's own responses, confirmed by setting each value by hand on
+// the physical camera and reading it back) only has Off/Low/Normal --
+// "High" isn't a real option on this body, so it's deliberately omitted
+// here rather than offered as a value that silently no-ops.
+std::string highIsoNrName(CrInt64u raw) {
+    switch (raw) {
+        case SDK::CrHighIsoNR_Off: return "Off";
+        case SDK::CrHighIsoNR_Low: return "Low";
+        case SDK::CrHighIsoNR_Normal: return "Normal";
+        default: return "Normal";
+    }
+}
+CrInt64u highIsoNrRaw(const std::string& name) {
+    if (name == "Off") return SDK::CrHighIsoNR_Off;
+    if (name == "Low") return SDK::CrHighIsoNR_Low;
+    if (name == "Normal") return SDK::CrHighIsoNR_Normal;
+    return SDK::CrHighIsoNR_Normal;
+}
+
 // ---------------------------------------------------------------------
 // Tiny hand-rolled JSON helpers (fixed, known shape -- no dependency)
 // ---------------------------------------------------------------------
@@ -642,6 +751,52 @@ bool jsonFindString(const std::string& body, const std::string& key, std::string
     if (end == std::string::npos) return false;
     out = body.substr(pos, end - pos);
     return true;
+}
+
+// Minimal parse/serialize for saved_cameras.json -- a flat array of
+// {name, ip, mac, userId, password} objects. Brace-matches each object,
+// then reuses jsonFindString per known key -- avoids needing a real JSON
+// library for a file this simple.
+std::vector<std::map<std::string, std::string>> parseSavedCameras(const std::string& content) {
+    std::vector<std::map<std::string, std::string>> result;
+    size_t pos = 0;
+    while (true) {
+        size_t start = content.find('{', pos);
+        if (start == std::string::npos) break;
+        int depth = 1;
+        size_t i = start + 1;
+        while (i < content.size() && depth > 0) {
+            if (content[i] == '{') depth++;
+            else if (content[i] == '}') depth--;
+            i++;
+        }
+        std::string obj = content.substr(start, i - start);
+        std::map<std::string, std::string> entry;
+        std::string val;
+        for (const char* key : {"name", "ip", "mac", "userId", "password"}) {
+            if (jsonFindString(obj, key, val)) entry[key] = val;
+        }
+        if (!entry.empty()) result.push_back(entry);
+        pos = i;
+    }
+    return result;
+}
+
+std::string serializeSavedCameras(const std::vector<std::map<std::string, std::string>>& cams) {
+    std::ostringstream json;
+    json << "[\n";
+    for (size_t idx = 0; idx < cams.size(); idx++) {
+        const auto& c = cams[idx];
+        json << "  {\n";
+        json << "    \"name\": \"" << jsonEscape(c.count("name") ? c.at("name") : "") << "\",\n";
+        json << "    \"ip\": \"" << jsonEscape(c.count("ip") ? c.at("ip") : "") << "\",\n";
+        json << "    \"mac\": \"" << jsonEscape(c.count("mac") ? c.at("mac") : "") << "\",\n";
+        json << "    \"userId\": \"" << jsonEscape(c.count("userId") ? c.at("userId") : "") << "\",\n";
+        json << "    \"password\": \"" << jsonEscape(c.count("password") ? c.at("password") : "") << "\"\n";
+        json << "  }" << (idx + 1 < cams.size() ? "," : "") << "\n";
+    }
+    json << "]\n";
+    return json.str();
 }
 
 // ---------------------------------------------------------------------
@@ -763,6 +918,9 @@ std::string readRecipeJson() {
         SDK::CrDeviceProperty_ColorTuningAB,
         SDK::CrDeviceProperty_ColorTuningGM,
         SDK::CrDeviceProperty_IsoSensitivity,
+        SDK::CrDeviceProperty_DRO,
+        SDK::CrDeviceProperty_AspectRatio,
+        SDK::CrDeviceProperty_HighIsoNR,
     };
     for (auto& f : creativeLookFields()) codes.push_back(f.code);
 
@@ -800,6 +958,12 @@ std::string readRecipeJson() {
             CrInt64u isoValue = raw & 0xFFFFFF;
             if (isoValue == SDK::CrISO_AUTO) json << "\"iso\":\"Auto\"";
             else json << "\"iso\":" << isoValue;
+        } else if (code == SDK::CrDeviceProperty_DRO) {
+            json << "\"dro\":\"" << droName(p.GetCurrentValue()) << "\"";
+        } else if (code == SDK::CrDeviceProperty_AspectRatio) {
+            json << "\"aspectRatio\":\"" << aspectRatioName(p.GetCurrentValue()) << "\"";
+        } else if (code == SDK::CrDeviceProperty_HighIsoNR) {
+            json << "\"highIsoNr\":\"" << highIsoNrName(p.GetCurrentValue()) << "\"";
         } else {
             for (auto& f : creativeLookFields()) {
                 if (f.code == code) { json << "\"" << f.key << "\":" << decodeSigned(p); break; }
@@ -922,6 +1086,36 @@ std::string writeRecipeJson(const std::string& body) {
         if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set ISO 0x%x", err); return buf; }
     }
 
+    std::string droStr;
+    if (jsonFindString(body, "dro", droStr)) {
+        SDK::CrDeviceProperty prop;
+        prop.SetCode(SDK::CrDeviceProperty_DRO);
+        prop.SetValueType(SDK::CrDataType_UInt16);
+        prop.SetCurrentValue(droRaw(droStr));
+        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
+        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set DRO 0x%x", err); return buf; }
+    }
+
+    std::string aspectRatioStr;
+    if (jsonFindString(body, "aspectRatio", aspectRatioStr)) {
+        SDK::CrDeviceProperty prop;
+        prop.SetCode(SDK::CrDeviceProperty_AspectRatio);
+        prop.SetValueType(SDK::CrDataType_UInt16);
+        prop.SetCurrentValue(aspectRatioRaw(aspectRatioStr));
+        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
+        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set Aspect Ratio 0x%x", err); return buf; }
+    }
+
+    std::string highIsoNrStr;
+    if (jsonFindString(body, "highIsoNr", highIsoNrStr)) {
+        SDK::CrDeviceProperty prop;
+        prop.SetCode(SDK::CrDeviceProperty_HighIsoNR);
+        prop.SetValueType(SDK::CrDataType_UInt8);
+        prop.SetCurrentValue(highIsoNrRaw(highIsoNrStr));
+        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
+        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set High ISO NR 0x%x", err); return buf; }
+    }
+
     return "";
 }
 
@@ -987,6 +1181,56 @@ int main() {
         res.set_content(json.str(), "application/json");
     });
 
+    svr.Get("/api/camera-info", [](const httplib::Request&, httplib::Response& res) {
+        std::lock_guard<std::mutex> lock(g_cameraMutex);
+        if (!g_connected) { res.set_content("{\"error\":\"not connected\"}", "application/json"); return; }
+        std::vector<CrInt32u> codes = {
+            SDK::CrDeviceProperty_ModelName,
+            SDK::CrDeviceProperty_BodySerialNumber,
+            SDK::CrDeviceProperty_LensModelName,
+            SDK::CrDeviceProperty_LensVersionNumber,
+            SDK::CrDeviceProperty_BatteryLevel,
+            SDK::CrDeviceProperty_BatteryRemain,
+            SDK::CrDeviceProperty_MediaSLOT1_RemainingNumber,
+            SDK::CrDeviceProperty_MediaSLOT2_RemainingNumber,
+        };
+        SDK::CrDeviceProperty* props = nullptr;
+        CrInt32 numProps = 0;
+        SDK::CrError err = SDK::GetSelectDeviceProperties(g_deviceHandle, (CrInt32u)codes.size(), codes.data(), &props, &numProps);
+        if (err) {
+            char buf[96]; snprintf(buf, sizeof(buf), "{\"error\":\"read failed 0x%x\"}", err);
+            res.set_content(buf, "application/json");
+            return;
+        }
+        std::ostringstream json;
+        json << "{";
+        for (CrInt32 i = 0; i < numProps; i++) {
+            SDK::CrDeviceProperty& p = props[i];
+            CrInt32u code = p.GetCode();
+            if (i > 0) json << ",";
+            if (code == SDK::CrDeviceProperty_ModelName) {
+                json << "\"modelName\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
+            } else if (code == SDK::CrDeviceProperty_BodySerialNumber) {
+                json << "\"bodySerialNumber\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
+            } else if (code == SDK::CrDeviceProperty_LensModelName) {
+                json << "\"lensModelName\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
+            } else if (code == SDK::CrDeviceProperty_LensVersionNumber) {
+                json << "\"lensVersionNumber\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
+            } else if (code == SDK::CrDeviceProperty_BatteryLevel) {
+                json << "\"batteryLevel\":\"" << batteryLevelName(p.GetCurrentValue()) << "\"";
+            } else if (code == SDK::CrDeviceProperty_BatteryRemain) {
+                json << "\"batteryRemain\":" << decodeSigned(p);
+            } else if (code == SDK::CrDeviceProperty_MediaSLOT1_RemainingNumber) {
+                json << "\"mediaSlot1Remaining\":" << decodeSigned(p);
+            } else if (code == SDK::CrDeviceProperty_MediaSLOT2_RemainingNumber) {
+                json << "\"mediaSlot2Remaining\":" << decodeSigned(p);
+            }
+        }
+        json << "}";
+        SDK::ReleaseDeviceProperties(g_deviceHandle, props);
+        res.set_content(json.str(), "application/json");
+    });
+
     svr.Get("/api/network/find", [](const httplib::Request& req, httplib::Response& res) {
         std::string mac = normalizeMac(req.get_param_value("mac"));
         std::string ip = findIpByMac(mac);
@@ -1038,6 +1282,44 @@ int main() {
         std::ostringstream ss;
         ss << f.rdbuf();
         res.set_content(ss.str(), "application/json");
+    });
+
+    // Saves (or updates, matched by name) one camera profile into
+    // saved_cameras.json from the Setup tab's manual Connect (Network)
+    // form -- lets the user create a one-tap Quick Connect for any
+    // camera, not just a hardcoded one.
+    svr.Post("/api/network/save", [](const httplib::Request& req, httplib::Response& res) {
+        std::string name, ip, mac, userId, password;
+        jsonFindString(req.body, "name", name);
+        jsonFindString(req.body, "ip", ip);
+        jsonFindString(req.body, "mac", mac);
+        jsonFindString(req.body, "userId", userId);
+        jsonFindString(req.body, "password", password);
+        if (name.empty() || ip.empty()) {
+            res.set_content("{\"success\":false,\"error\":\"name and ip are required\"}", "application/json");
+            return;
+        }
+        std::vector<std::map<std::string, std::string>> cams;
+        std::ifstream inFile("saved_cameras.json");
+        if (inFile) {
+            std::ostringstream ss;
+            ss << inFile.rdbuf();
+            cams = parseSavedCameras(ss.str());
+        }
+        bool replaced = false;
+        for (auto& c : cams) {
+            if (c["name"] == name) {
+                c["ip"] = ip; c["mac"] = mac; c["userId"] = userId; c["password"] = password;
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) {
+            cams.push_back({{"name", name}, {"ip", ip}, {"mac", mac}, {"userId", userId}, {"password", password}});
+        }
+        std::ofstream outFile("saved_cameras.json");
+        outFile << serializeSavedCameras(cams);
+        res.set_content("{\"success\":true}", "application/json");
     });
 
     svr.Post("/api/connect/usb", [](const httplib::Request&, httplib::Response& res) {
