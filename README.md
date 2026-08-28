@@ -249,23 +249,6 @@ server in lockstep (a lot of changes so far have touched both sides at
 once); it may move to its own repo once it's further along and has its
 own release cadence.
 
-## Lines of code
-
-```
-server/main.cpp             1,311   (backend: SDK integration, REST API, JSON)
-server/public/index.html    1,110   (frontend: HTML/CSS/JS, single file)
-ios/Sony Config/            1,715   (native iPadOS client, Swift)
------------------------------------
-Total authored code         4,136
-```
-
-Plus 675 lines of `LICENSE` (GPLv3, standard boilerplate) and
-`third_party/httplib.h` (10,393 lines, vendored MIT-licensed dependency,
-not authored by this project). Sony's own `CrDebugString.cpp`/`.h`
-(~120KB) are not tracked in git at all — they're part of the proprietary
-CrSDK download, gitignored under `third_party/CrSDK/` along with the rest
-of the SDK.
-
 ## Status
 
 Working end-to-end on real hardware: a Raspberry Pi Zero 2 W running as
