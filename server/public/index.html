@@ -409,7 +409,7 @@
     const SETUP_TAB = "__setup__";
     const CUSTOM_TAB = "__custom__";
     let presetGroups = new Map();
-    let activeTab = SETUP_TAB;
+    let activeTab = CUSTOM_TAB;
 
     async function loadPresets() {
       const presets = await api("/api/presets");
