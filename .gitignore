@@ -11,6 +11,10 @@ server/saved_cameras.json
 # User's Saved Recipes library -- local runtime state, not source.
 server/saved_recipes.json
 
+# Docker deployment's bind-mounted copies of the same two files (see
+# docs/DOCKER.md) -- same reasons as above, different path.
+scripts/data/
+
 # Build output
 server/build/
 *.o

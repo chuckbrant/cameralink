@@ -50,12 +50,17 @@ App Transport Security is relaxed (`NSAllowsArbitraryLoads`) since the
 server is plain HTTP by design (a local-network-only tool, no public
 internet exposure) — see `project.yml`'s `Info.plist` properties.
 
-Setup also has two one-tap **Quick Connect** buttons -- "Network"
-(`http://10.42.0.1:8080`, the Pi's Wi-Fi access point) and "USB Gadget"
-(`http://192.168.7.2:8080`, the Pi's USB gadget address) -- that switch
-the server address and then connect using whatever camera profile is
-already saved on that server. No camera credentials are ever hardcoded
-in this app; they're fetched fresh from the Pi each time.
+Setup also has three one-tap **Quick Connect** buttons -- "Network"
+(`http://10.42.0.1:8080`, the Pi's Wi-Fi access point), "USB Gadget"
+(`http://192.168.7.2:8080`, the Pi's USB gadget address), and "Synology"
+(the Docker deployment described in
+[docs/DOCKER.md](../../docs/DOCKER.md), running on a NAS on the same LAN)
+-- that switch the server address and then connect using whatever camera
+profile is already saved on that server. Each server instance keeps its
+own independent saved-camera list, so the same physical camera may need
+pairing separately per instance the first time. No camera credentials are
+ever hardcoded in this app; they're fetched fresh from the server each
+time.
 
 ## Two connections, shown separately
 

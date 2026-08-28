@@ -1,0 +1,23 @@
+# Run from the repo root: docker compose -f scripts/docker-compose.yml up -d --build
+# See docs/DOCKER.md for the full walkthrough.
+services:
+  cameralink:
+    build:
+      context: ..
+      dockerfile: scripts/Dockerfile
+    container_name: cameralink
+    # host networking, not bridge -- the container needs to reach the
+    # camera directly on the LAN, and be reachable itself at the host's
+    # own address on :8080 with no port-mapping/NAT to think about. See
+    # docs/DOCKER.md for why this differs from the Pi's own dedicated
+    # Wi-Fi access point + USB gadget approach.
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      # saved_cameras.json/saved_recipes.json live in the container's cwd
+      # (/app) -- bind-mount them individually so they survive image
+      # rebuilds/recreates. Pre-create these two files as "[]" on the host
+      # before first `up`, or Docker will create them as directories
+      # instead of files.
+      - ./data/saved_cameras.json:/app/saved_cameras.json
+      - ./data/saved_recipes.json:/app/saved_recipes.json

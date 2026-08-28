@@ -5,7 +5,7 @@
 ```mermaid
 flowchart LR
     subgraph iPad["iPad / Mac (client)"]
-        Browser["Web browser<br/>(or future native app)"]
+        Browser["Web browser<br/>(or Sony Config, the native iPad app)"]
     end
 
     subgraph Pi["Raspberry Pi Zero 2 W — cameralink"]
@@ -35,6 +35,45 @@ flowchart LR
   camera joins it directly. No home network, no router, no internet
   connection required anywhere in this chain — the whole rig works
   standalone, anywhere.
+
+## Second topology: Docker on an existing LAN (NAS / home server)
+
+The same `cameralink_server` binary also runs as a container on any
+x86_64 Linux box that's already on the same network as the camera — no
+Pi, no dedicated access point, no USB gadget mode. Confirmed running on a
+Synology NAS's Container Manager against a real a7R V. Full walkthrough:
+[DOCKER.md](DOCKER.md).
+
+```mermaid
+flowchart LR
+    subgraph Client["iPad / Mac (client)"]
+        Browser2["Web browser or<br/>Sony Config app"]
+    end
+
+    subgraph LAN["Existing WiFi / LAN (e.g. NASVAN#3)"]
+        direction LR
+        subgraph NAS["NAS / home server — Docker"]
+            Server2["cameralink_server<br/>container, network_mode: host<br/>:8080"]
+            CrSDK2["Sony CrSDK<br/>(libCr_Core.so, Linux64PC build)"]
+        end
+        Camera2["Sony a7R V<br/>Remote Shoot Function"]
+    end
+
+    Browser2 <-->|"WiFi/Ethernet<br/>host's own LAN IP:8080"| Server2
+    Server2 <--> CrSDK2
+    CrSDK2 <-->|"WiFi, existing router/AP"| Camera2
+```
+
+The key difference from the Pi topology: here the container and the
+camera are both *joining* a network that already exists (your router's
+Wi-Fi), rather than the Pi *being* the network. That trades away the
+Pi kit's "works anywhere, no infrastructure" property for the
+convenience of reusing hardware you already run 24/7 — a reasonable
+trade for a home/studio setup that never leaves the house, less so for
+a field kit. `network_mode: host` is what makes the container reachable
+at the NAS's own address with no port-mapping to think about, the same
+way the Pi's server is just reachable at whatever address the Pi itself
+has.
 
 ## Why a Raspberry Pi Zero 2 W
 

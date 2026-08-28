@@ -36,6 +36,9 @@ struct SetupView: View {
                 Button("Quick Connect (USB Gadget)") {
                     Task { await appState.quickConnect(serverURL: AppState.gadgetServerURL) }
                 }
+                Button("Quick Connect (Synology)") {
+                    Task { await appState.quickConnect(serverURL: AppState.synologyServerURL) }
+                }
                 if appState.savedCameras.isEmpty {
                     Text("No saved cameras yet.").foregroundStyle(.secondary)
                 }

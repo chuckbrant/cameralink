@@ -17,10 +17,11 @@ license page in a browser) — you need to fetch your own copy.
      64-bit ARM Linux board → **Linux64ARMv8**
    - Older 32-bit Pi builds → **Linux32ARMv7**
    - A generic x86_64 Linux machine (for testing the server itself without
-     Pi-specific hardware — see [INSTALL.md](INSTALL.md)) → the x86_64
-     Linux build, if Sony offers one for your SDK version; not all
-     versions do, since CrSDK primarily targets Pi-class ARM hardware in
-     the field
+     Pi-specific hardware — see [INSTALL.md](INSTALL.md) — or for a
+     Docker/NAS deployment, see [DOCKER.md](DOCKER.md)) → the **Linux64PC**
+     build, if Sony offers one for your SDK version (confirmed available
+     for v2.02.00); not all versions do, since CrSDK primarily targets
+     Pi-class ARM hardware in the field
 3. Unzip it. Inside you'll find several sample-app bundles (`SimpleCli.zip`,
    `RemoteCli.zip`) that each carry their own copy of the same headers and
    `.so` libraries. Any one of them works — copy these into

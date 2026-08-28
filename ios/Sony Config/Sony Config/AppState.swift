@@ -298,6 +298,11 @@ final class AppState {
     // fetched fresh below.
     static let networkServerURL = "http://10.42.0.1:8080"
     static let gadgetServerURL = "http://192.168.7.2:8080"
+    // A second, independent server instance -- same code, running as a
+    // Docker container on the Synology NAS (Chuck-NAS) instead of the Pi.
+    // Its own saved_cameras.json/saved_recipes.json are separate from the
+    // Pi's.
+    static let synologyServerURL = "http://192.168.4.250:8080"
 
     func loadSavedCameras() async {
         do { savedCameras = try await api.savedCameras() } catch { report(error) }

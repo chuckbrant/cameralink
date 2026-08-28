@@ -148,10 +148,16 @@ today:
    whether *this device* can reach the Pi's server at all (over Wi-Fi or
    the USB gadget cable) versus whether the *camera* is paired to the Pi
    — either can be down while the other is fine, and they need different
-   fixes.
+   fixes. Its Quick Connect buttons can point at any running cameralink
+   instance — the Pi's Wi-Fi AP, its USB gadget address, or a Docker
+   deployment like the one in [docs/DOCKER.md](docs/DOCKER.md) — since
+   they're all just servers speaking the same API.
 
 Both talk to the same running server — recipes, Saved Recipes, and Quick
 Connect profiles saved from one are immediately visible from the other.
+Different server instances (e.g. the Pi vs. a Docker deployment) each
+keep their own independent set, since each has its own
+`saved_cameras.json`/`saved_recipes.json`.
 
 ## What the server needs to run
 
@@ -174,6 +180,17 @@ plain Ethernet LAN the camera and the server both sit on). That's exactly
 what [docs/INSTALL.md](docs/INSTALL.md) is for: standing up just the
 server on a bare Linux machine to see how much of this is really
 Pi-specific.
+
+There's also a ready-made **Docker deployment** for this
+(`scripts/Dockerfile`, `scripts/docker-compose.yml`) for running
+cameralink on an always-on x86_64 Linux box you already have — a NAS, a
+home server, a VM — instead of the Pi. Confirmed working end-to-end on a
+Synology NAS's Container Manager against a real a7R V, with the camera
+and the container both joining an existing home Wi-Fi network rather
+than the Pi's own dedicated access point. See
+[docs/DOCKER.md](docs/DOCKER.md) and the
+[second topology diagram](docs/ARCHITECTURE.md#second-topology-docker-on-an-existing-lan-nas--home-server)
+in ARCHITECTURE.md.
 
 ## API
 
@@ -208,8 +225,10 @@ of it.
 server/       C++ backend (cpp-httplib) + the bundled web frontend
 ios/          Sony Config -- the native iPadOS client (SwiftUI, XcodeGen project)
 third_party/  Vendored MIT-licensed httplib.h; Sony's CrSDK goes here (gitignored, see docs/BUILDING.md)
-scripts/      Build script, systemd unit template, one-time Pi network setup script
-docs/         Architecture, SDK capability notes, setup guides, fresh-machine install guide
+scripts/      Build script, systemd unit template, one-time Pi network setup script,
+              Dockerfile + docker-compose.yml for the Docker/NAS deployment
+docs/         Architecture, SDK capability notes, setup guides, fresh-machine install guide,
+              Docker deployment guide
 ```
 
 `ios/` lives in this repo for now while it's developed alongside the
@@ -252,13 +271,20 @@ the web UI has a one-tap clean shutdown button
 (`POST /api/system/shutdown`) so the Pi doesn't need its power cable
 yanked to turn off.
 
-**Sony Config**, the native iPadOS client, has a first working version —
-all four tabs build and run against the real server and a physical
-camera, including live end-to-end verification in the iOS Simulator. Not
-yet tested on a physical iPad (needs a Development Team ID for on-device
-code signing) or exercised through every interactive control
-individually. Also not yet built, on either client: Picture Profile's
+**Sony Config**, the native iPadOS client, is confirmed working end-to-end
+on a physical iPad — all four tabs, both connection transports (the Pi's
+Wi-Fi AP and its USB gadget cable), and now a third Quick Connect target
+pointed at the Docker deployment below — against a real a7R V. Not yet
+exercised through every interactive control individually (e.g. dragging
+the Tone Curve, tapping through the WB grid, each click-tested on-device
+one by one). Also not yet built, on either client: Picture Profile's
 deeper sub-parameters beyond the slot selector.
+
+A second deployment path is also confirmed working end-to-end: the same
+server running as a Docker container on a Synology NAS (DS920+, x86_64),
+with the camera and container both joining an existing home Wi-Fi network
+instead of the Pi's own access point — see
+[docs/DOCKER.md](docs/DOCKER.md).
 
 Also worth doing: validating how much of the server-side install process
 (beyond the manual, un-automatable step of accepting Sony's SDK license)
