@@ -50,6 +50,12 @@ creates a missing bind-mount source as a directory, not a file) — see
 and connect to your camera from the Setup tab, same as any other
 cameralink deployment.
 
+For getting the camera itself ready (turning on Remote Shoot Function,
+reading its User ID/Password off the Access Authen. Info screen), see
+[docs/CAMERA_SETUP.md](../docs/CAMERA_SETUP.md) -- steps 1 and 4 there
+apply here; step 2 is Pi-specific (this deployment instead joins the
+camera to your existing Wi-Fi network, same as [docs/DOCKER.md](../docs/DOCKER.md) describes).
+
 ## Rebuilding these
 
 Each is just `docker build -f scripts/Dockerfile -t <name> .` against a
