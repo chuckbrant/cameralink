@@ -55,6 +55,9 @@ reading its User ID/Password off the Access Authen. Info screen), see
 [docs/CAMERA_SETUP.md](../docs/CAMERA_SETUP.md) -- steps 1 and 4 there
 apply here; step 2 is Pi-specific (this deployment instead joins the
 camera to your existing Wi-Fi network, same as [docs/DOCKER.md](../docs/DOCKER.md) describes).
+You'll also need the camera's IP address once it's joined that network --
+find it on the camera itself under **MENU → Network → Wi-Fi → Display
+Wi-Fi Info**.
 
 ## Rebuilding these
 
