@@ -8,6 +8,11 @@ field-deployable "no infrastructure at all" design. Confirmed working on
 a Synology DS920+ (Celeron J4125, x86_64, DSM 7.4 Container Manager) with
 a real Sony a7R V.
 
+**Don't want to build it yourself?** [docker/prebuilt-images/](../docker/prebuilt-images/README.md)
+has ready-to-run images for Apple Silicon Macs and x86_64 (NAS/Intel/AMD)
+— skip straight to [step 3](#3-build-and-run) below with one of those
+loaded instead of building.
+
 ## How this differs from the Pi setup
 
 The Pi runs its *own* Wi-Fi access point and the camera joins it directly

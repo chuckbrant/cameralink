@@ -24,7 +24,9 @@ flowchart LR
     NAS -->|WiFi| Camera2["Sony a7R V"]
 ```
 
-See [docs/DOCKER.md](docs/DOCKER.md) for that path.
+See [docs/DOCKER.md](docs/DOCKER.md) for that path — or skip straight to a
+[prebuilt image](docker/prebuilt-images/README.md) (Apple Silicon Mac or
+x86_64) if you don't want to build it yourself.
 
 Full diagram and the reasoning behind it: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
