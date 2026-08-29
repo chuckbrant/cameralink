@@ -40,5 +40,11 @@ COPY third_party/CrSDK/*.so /app/
 COPY third_party/CrSDK/CrAdapter /app/CrAdapter
 COPY server/public /app/public
 
+# "Shut Down Pi" is a no-op here anyway (see docs/DOCKER.md), but there's
+# no reason to show a button for it in a deployment with no Pi at all --
+# strip the block between its markers in the served copy only, the
+# source file (used by the actual Pi build) is untouched.
+RUN sed -i '/<!-- PI-ONLY:START -->/,/<!-- PI-ONLY:END -->/d' /app/public/index.html
+
 EXPOSE 8080
 CMD ["./cameralink_server"]
