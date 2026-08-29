@@ -30,6 +30,9 @@ end-users know:
 - **Sony didn't write, own, or support this software.** It's an
   independent project; Sony isn't involved and isn't who to ask for help.
 
+Sony's SDK page, including the license text itself:
+[support.d-imaging.sony.co.jp/app/sdk/en/](https://support.d-imaging.sony.co.jp/app/sdk/en/)
+
 ## Running one
 
 ```
