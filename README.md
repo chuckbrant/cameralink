@@ -125,15 +125,6 @@ physical memory-recall slot (`C1`/`C2`/`C3`) — that's still a manual,
 one-button step on the camera itself after pushing a recipe. See
 [SDK_CAPABILITIES.md](docs/SDK_CAPABILITIES.md) for why.
 
-A Panasonic G9 integration was prototyped and then removed: Panasonic has
-no accessible official Linux SDK, and the only Linux-reachable path
-(`cam.cgi`, an unencrypted, community-reverse-engineered HTTP/CGI
-interface) turned out to have no continuous sub-parameters at all —
-confirmed by enumerating every one of the 34 commands the protocol
-supports. No remote Contrast/Sharpness/Saturation/Noise Reduction, no
-White Balance fine-tune axis — just named presets, not enough capability
-to be worth the extra surface area. Not pursuing it further.
-
 ## Getting started
 
 1. [docs/BUILDING.md](docs/BUILDING.md) — get Sony's CrSDK and build the server

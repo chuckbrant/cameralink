@@ -120,8 +120,8 @@ DHCP server (`10.42.0.10`–`10.42.0.254`) — it was briefly configured
 without one, on the reasoning that cameralink already treats the camera's
 IP as a value you provide when connecting, so a dynamic address seemed
 unnecessary. That turned out to be short-sighted: it assumed every camera
-supports manual/static IP entry over Wi-Fi, which not all of them do
-(e.g. Panasonic's G9 doesn't). DHCP on the AP was never actually
+supports manual/static IP entry over Wi-Fi, which not all of them do.
+DHCP on the AP was never actually
 implicated in the `usb0` stability bug above — they're different network
 interfaces entirely — so there was no real reason to remove it, and it's
 been reinstated. A camera that supports static IP entry (see
