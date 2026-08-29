@@ -1,0 +1,33 @@
+# Builds cameralink_server with ZERO Sony CrSDK dependency -- talks to the
+# camera directly via a native PTP/IP-over-SSH client (server/ptpip_client.*),
+# built from reverse-engineered protocol research (see the private research
+# doc referenced in ptpip_client.h -- not part of this repo). Links only
+# against a standard system libssh2, nothing proprietary.
+#
+# USB is not supported by this build (see main.cpp's /api/connect/usb) --
+# only network connections, which is what the NAS/Docker deployment uses
+# anyway.
+FROM debian:bookworm-slim AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends g++ libssh2-1-dev \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY third_party/httplib.h /build/third_party/httplib.h
+COPY server/main.cpp /build/server/main.cpp
+COPY server/ptpip_client.h /build/server/ptpip_client.h
+COPY server/ptpip_client.cpp /build/server/ptpip_client.cpp
+
+RUN g++ -std=c++17 -pthread -fstack-protector-all \
+    -I "/build/third_party" -I "/build/server" \
+    /build/server/main.cpp /build/server/ptpip_client.cpp \
+    -lssh2 \
+    -o /build/cameralink_server
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends libssh2-1 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=builder /build/cameralink_server /app/cameralink_server
+COPY server/public /app/public
+
+EXPOSE 8080
+CMD ["./cameralink_server"]
