@@ -88,14 +88,16 @@ the [Sony Config iOS app](../ios/Sony%20Config/README.md) can point at
 this instance's address as just another server URL / Quick Connect
 target.
 
-## Known no-op: "Shut Down Pi"
+## No "Shut Down Pi" button here
 
 The web UI's shutdown button (`POST /api/system/shutdown`) shells out to
-`sudo shutdown -h now`. Neither `sudo` nor a real init system exists
-inside this container, so the call just fails harmlessly here — it is
-**not** wired to shut down the host NAS/server. This is intentional
-(nothing in this repo attempts to gate or hide the button per
-deployment), not a bug to fix.
+`sudo shutdown -h now` — meaningful on the actual Pi field kit, meaningless
+here (neither `sudo` nor a real init system exists inside this container,
+so the call would just fail harmlessly if it ran). `scripts/Dockerfile`
+strips the button out of its own copy of the served page at build time
+rather than shipping a control with no working purpose; the underlying
+`/api/system/shutdown` endpoint is still present in the binary either way,
+just unreachable from this UI.
 
 ## Why libxml2 needs installing explicitly
 
