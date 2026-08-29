@@ -26,6 +26,23 @@ flowchart LR
 
 See [docs/DOCKER.md](docs/DOCKER.md) for that path.
 
+**The Pi isn't required at all if you're only using the iPad app.** Sony
+Config speaks the same camera protocol directly — no Pi, no NAS, no
+server of any kind in the loop:
+
+```mermaid
+flowchart LR
+    iPad3["Sony Config (iPad)"] -->|WiFi| Camera3["Sony a7R V"]
+```
+
+This works two ways: join the camera's own hosted Wi-Fi access point (the
+same mode used for phone pairing — no credentials needed at all), or have
+both the iPad and camera join a shared home/studio Wi-Fi network. The Pi
+setup above is still the answer for the browser/any-device case, or for
+a self-contained field kit that doesn't depend on either device already
+being on the same network — but for "just my iPad and my camera," this is
+the whole stack.
+
 Full diagram and the reasoning behind it: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 **The Pi Zero 2 W + iPad combo above is the field-deployable design

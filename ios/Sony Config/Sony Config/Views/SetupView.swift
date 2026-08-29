@@ -19,16 +19,23 @@ struct SetupView: View {
                 Button("Quick Connect (Camera-hosted AP)") {
                     Task { await appState.connectCameraHostedAP() }
                 }
+                Button("Quick Connect (Home Network)") {
+                    Task { await appState.quickConnect(.homeNetworkDefault) }
+                }
                 Button(showWifiForm ? "Hide Wi-Fi Connect Form" : "Connect via Wi-Fi") {
                     showWifiForm.toggle()
                 }
-                ForEach(appState.savedCameras) { cam in
+                // Home Network has its own dedicated button above (always
+                // visible, not dependent on LocalStore's seed file existing)
+                // -- don't show it a second time here.
+                ForEach(appState.savedCameras.filter { $0.name != SavedCamera.homeNetworkDefault.name }) { cam in
                     Button(cam.name) {
                         Task { await appState.quickConnect(cam) }
                     }
                 }
                 .onDelete { offsets in
-                    for index in offsets { appState.deleteSavedCamera(appState.savedCameras[index]) }
+                    let others = appState.savedCameras.filter { $0.name != SavedCamera.homeNetworkDefault.name }
+                    for index in offsets { appState.deleteSavedCamera(others[index]) }
                 }
                 if appState.connected {
                     Button("Disconnect", role: .destructive) { appState.disconnect() }
