@@ -4,10 +4,15 @@
 
 This project talks to the camera through Sony's official **Camera Remote SDK
 (CrSDK)**. It's free, but proprietary — Sony requires you to accept their own
-license agreement before downloading, and that agreement doesn't clearly
-grant redistribution rights. So this repo does **not** include it, and
-this step can't be automated (it requires a human clicking through a
-license page in a browser) — you need to fetch your own copy.
+license agreement before downloading. That agreement's GRANT OF LICENSE
+section does permit incorporating the compiled `.so` files into a built
+application "in an inseparable way" and distributing that application
+(see [docker/prebuilt-images/](../docker/prebuilt-images/README.md) for
+one built that way) — but the raw SDK files themselves aren't
+redistributable as a standalone download, so this repo does **not**
+include them, and this step can't be automated (it requires a human
+clicking through a license page in a browser) — you need to fetch your
+own copy.
 
 1. Go to [Sony's Camera Remote SDK download page](https://support.d-imaging.sony.co.jp/app/sdk/en/index.html)
    (or the mirror at [pro.sony](https://pro.sony/en_GB/digital-imaging/sdk-download)).
