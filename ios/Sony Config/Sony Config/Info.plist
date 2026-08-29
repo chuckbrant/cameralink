@@ -26,7 +26,7 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Sony Config talks to the cameralink Pi over your local network (Wi-Fi or the USB-C gadget link) to control a connected Sony camera.</string>
+	<string>Sony Config connects directly to your Sony camera over Wi-Fi to read and write its settings.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

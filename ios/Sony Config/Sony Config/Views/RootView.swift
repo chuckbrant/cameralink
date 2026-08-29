@@ -7,27 +7,17 @@ struct RootView: View {
         @Bindable var appState = appStateEnv
 
         VStack(spacing: 0) {
-            // Two independent links -- this device to the Pi's server, and
-            // the Pi to the camera -- shown separately since either can be
-            // down while the other is fine, and they need different fixes
-            // (reconnect the cable/Wi-Fi vs. reconnect the camera).
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(serverDotColor)
-                        .frame(width: 10, height: 10)
-                    Text(serverStatusText)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(appState.connected ? Color.green : Color.gray)
-                        .frame(width: 10, height: 10)
-                    Text(appState.connected ? appState.cameraModel : "Camera not connected")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
+            // This iPad talks directly to the camera (Wi-Fi or USB) -- no
+            // server/Pi in the loop, so there's just one link to show.
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(appState.connected ? Color.green : Color.gray)
+                    .frame(width: 10, height: 10)
+                Text(appState.connected
+                     ? "\(appState.cameraModel) (\(appState.connectionKindLabel))"
+                     : "Camera not connected")
+                    .foregroundStyle(.secondary)
+                Spacer()
             }
             .font(.footnote)
             .padding(.horizontal)
@@ -74,22 +64,6 @@ struct RootView: View {
                     appState.statusMessage = nil
                 }
             }
-        }
-    }
-
-    private var serverDotColor: Color {
-        switch appStateEnv.serverReachable {
-        case .some(true): return .green
-        case .some(false): return .red
-        case .none: return .gray
-        }
-    }
-
-    private var serverStatusText: String {
-        switch appStateEnv.serverReachable {
-        case .some(true): return "Server: \(appStateEnv.serverURLString)"
-        case .some(false): return "Server unreachable (\(appStateEnv.serverURLString))"
-        case .none: return "Checking server..."
         }
     }
 }

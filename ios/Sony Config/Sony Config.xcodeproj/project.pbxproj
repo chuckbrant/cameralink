@@ -10,12 +10,21 @@
 		0CFDA5805AB1477E7FE6F145 /* ToneCurveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F21EF78B9D8AD2D270AF6B29 /* ToneCurveView.swift */; };
 		103BC7D4116C9467AC30B6ED /* WhiteBalanceGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC2A1AAFA5AE64508890579 /* WhiteBalanceGridView.swift */; };
 		143FC6BBB3C039B312546424 /* CustomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9362883B347538D071B100E0 /* CustomView.swift */; };
+		15EE44A375DDBAB8A3B5B3D6 /* LocalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB3C54BE6EF8AAF305DD574 /* LocalStore.swift */; };
+		257AD181401CAC9EAD495A66 /* DirectWifiTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4011036D856DFA7F7182EA81 /* DirectWifiTransport.swift */; };
+		2A615D2A5808A75DCF5E2A1D /* PtpKnownProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFADDECC7B4E071BE848A825 /* PtpKnownProperties.swift */; };
+		421EE92E93AC45D0D6A5D896 /* RecipeCameraClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FAAD98692211527C3E51D6A /* RecipeCameraClient.swift */; };
 		4589E80479223DFC6F31A0D7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7E9C73F7E474AB5091528E8B /* Assets.xcassets */; };
-		45E0A2DC567C9F1B55CB33E0 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C3FE0F519303C11A8EE273E /* APIClient.swift */; };
+		4D113B850D4055133EFC522E /* CSSH2 in Frameworks */ = {isa = PBXBuildFile; productRef = 147FF1D8307B00BDC9BA7C6D /* CSSH2 */; };
+		53FE6D0375719C8C9B3484B1 /* CameraTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86D605DE0E5C7EA7F2BDF0B7 /* CameraTransport.swift */; };
+		680E722E0B6960237BCCAF55 /* PlainPtpIpWireClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A2A034A2165729BFB4DC3A /* PlainPtpIpWireClient.swift */; };
+		6A8587870E07B808662D1F74 /* WifiTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8154BA8DA4C52FABBA35F6A0 /* WifiTransport.swift */; };
 		79979E1ADBE0F6F270B00B31 /* SavedRecipesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39C3DFCDEE19BB65ABF64803 /* SavedRecipesView.swift */; };
 		7B1503FD953A92C6AF0FC18A /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA9564DA0054B34E273833AD /* SetupView.swift */; };
+		872CCE0E565CDBC3DB80C33A /* PtpIpWireClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9824C598FAB28EF88AC9609 /* PtpIpWireClient.swift */; };
 		8E9D951F390D2CD24FD30AFF /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44ABA66A8650F710E9344BD3 /* RootView.swift */; };
 		91E90FC40DCE3D81AF500D7C /* SonyConfigApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA7882D851A62A62BDE44FF6 /* SonyConfigApp.swift */; };
+		A0467EBE288A49B91FACA32F /* presets.json in Resources */ = {isa = PBXBuildFile; fileRef = 49E0BA41177722EDA96427F9 /* presets.json */; };
 		B4E510233C152710897A5F05 /* FilmRecipesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FB4C8C09AF4DF5C0D68387 /* FilmRecipesView.swift */; };
 		B807182C7B4657A8EFA2CE34 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66DE1DA34D9B317F7FCD9A34 /* AppState.swift */; };
 		F90B55A56ED0823D7B584ACF /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 933C404CEB79F73C04FF850C /* Models.swift */; };
@@ -23,20 +32,39 @@
 
 /* Begin PBXFileReference section */
 		01F45C694DF2FD2D819370CD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		17A2A034A2165729BFB4DC3A /* PlainPtpIpWireClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlainPtpIpWireClient.swift; sourceTree = "<group>"; };
+		1FAAD98692211527C3E51D6A /* RecipeCameraClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecipeCameraClient.swift; sourceTree = "<group>"; };
 		38FB4C8C09AF4DF5C0D68387 /* FilmRecipesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilmRecipesView.swift; sourceTree = "<group>"; };
 		39C3DFCDEE19BB65ABF64803 /* SavedRecipesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedRecipesView.swift; sourceTree = "<group>"; };
+		4011036D856DFA7F7182EA81 /* DirectWifiTransport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DirectWifiTransport.swift; sourceTree = "<group>"; };
 		44ABA66A8650F710E9344BD3 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		49E0BA41177722EDA96427F9 /* presets.json */ = {isa = PBXFileReference; includeInIndex = 1; path = presets.json; sourceTree = "<group>"; };
 		5BC2A1AAFA5AE64508890579 /* WhiteBalanceGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhiteBalanceGridView.swift; sourceTree = "<group>"; };
 		66DE1DA34D9B317F7FCD9A34 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		7E9C73F7E474AB5091528E8B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		8C3FE0F519303C11A8EE273E /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		8154BA8DA4C52FABBA35F6A0 /* WifiTransport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WifiTransport.swift; sourceTree = "<group>"; };
+		86D605DE0E5C7EA7F2BDF0B7 /* CameraTransport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraTransport.swift; sourceTree = "<group>"; };
 		933C404CEB79F73C04FF850C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		9362883B347538D071B100E0 /* CustomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomView.swift; sourceTree = "<group>"; };
 		BA9564DA0054B34E273833AD /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
+		BFADDECC7B4E071BE848A825 /* PtpKnownProperties.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PtpKnownProperties.swift; sourceTree = "<group>"; };
+		C9824C598FAB28EF88AC9609 /* PtpIpWireClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PtpIpWireClient.swift; sourceTree = "<group>"; };
 		CA7882D851A62A62BDE44FF6 /* SonyConfigApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SonyConfigApp.swift; sourceTree = "<group>"; };
 		E97301F06F9C2C6E6CD79CA5 /* Sony Config.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Sony Config.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EAB3C54BE6EF8AAF305DD574 /* LocalStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalStore.swift; sourceTree = "<group>"; };
 		F21EF78B9D8AD2D270AF6B29 /* ToneCurveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToneCurveView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		474CFC6DBE51E03469FB91D5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4D113B850D4055133EFC522E /* CSSH2 in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		17D52B3776AD6BBBFABBD117 /* Products */ = {
@@ -47,24 +75,43 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		35846A64A8BE0E9E7D3695DD /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				49E0BA41177722EDA96427F9 /* presets.json */,
+			);
+			name = Resources;
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		371B7830BFFC3029CE54673F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		5531869622161EA0BC295512 = {
 			isa = PBXGroup;
 			children = (
 				59F9A3ED676DDC3D8B0759CD /* Sony Config */,
 				17D52B3776AD6BBBFABBD117 /* Products */,
+				371B7830BFFC3029CE54673F /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
 		59F9A3ED676DDC3D8B0759CD /* Sony Config */ = {
 			isa = PBXGroup;
 			children = (
-				8C3FE0F519303C11A8EE273E /* APIClient.swift */,
 				66DE1DA34D9B317F7FCD9A34 /* AppState.swift */,
 				7E9C73F7E474AB5091528E8B /* Assets.xcassets */,
 				01F45C694DF2FD2D819370CD /* Info.plist */,
 				933C404CEB79F73C04FF850C /* Models.swift */,
 				CA7882D851A62A62BDE44FF6 /* SonyConfigApp.swift */,
 				72C91AA76EC1FDE3CFB6EF0D /* Views */,
+				E02C723832DFCEA277FD0467 /* CameraClient */,
+				EAB3C54BE6EF8AAF305DD574 /* LocalStore.swift */,
+				35846A64A8BE0E9E7D3695DD /* Resources */,
 			);
 			path = "Sony Config";
 			sourceTree = "<group>";
@@ -83,6 +130,21 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		E02C723832DFCEA277FD0467 /* CameraClient */ = {
+			isa = PBXGroup;
+			children = (
+				86D605DE0E5C7EA7F2BDF0B7 /* CameraTransport.swift */,
+				C9824C598FAB28EF88AC9609 /* PtpIpWireClient.swift */,
+				8154BA8DA4C52FABBA35F6A0 /* WifiTransport.swift */,
+				1FAAD98692211527C3E51D6A /* RecipeCameraClient.swift */,
+				17A2A034A2165729BFB4DC3A /* PlainPtpIpWireClient.swift */,
+				BFADDECC7B4E071BE848A825 /* PtpKnownProperties.swift */,
+				4011036D856DFA7F7182EA81 /* DirectWifiTransport.swift */,
+			);
+			name = CameraClient;
+			path = CameraClient;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -92,6 +154,7 @@
 			buildPhases = (
 				8BA6EC72442128B36A98F855 /* Sources */,
 				1586E2C1730A286058158707 /* Resources */,
+				474CFC6DBE51E03469FB91D5 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -99,6 +162,7 @@
 			);
 			name = "Sony Config";
 			packageProductDependencies = (
+				147FF1D8307B00BDC9BA7C6D /* CSSH2 */,
 			);
 			productName = "Sony Config";
 			productReference = E97301F06F9C2C6E6CD79CA5 /* Sony Config.app */;
@@ -128,6 +192,9 @@
 			);
 			mainGroup = 5531869622161EA0BC295512;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				4628E1E99A5864BA7C7AF880 /* XCRemoteSwiftPackageReference "libssh2-spm" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 17D52B3776AD6BBBFABBD117 /* Products */;
 			projectDirPath = "";
@@ -144,6 +211,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4589E80479223DFC6F31A0D7 /* Assets.xcassets in Resources */,
+				A0467EBE288A49B91FACA32F /* presets.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -154,7 +222,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				45E0A2DC567C9F1B55CB33E0 /* APIClient.swift in Sources */,
 				B807182C7B4657A8EFA2CE34 /* AppState.swift in Sources */,
 				143FC6BBB3C039B312546424 /* CustomView.swift in Sources */,
 				B4E510233C152710897A5F05 /* FilmRecipesView.swift in Sources */,
@@ -165,6 +232,14 @@
 				91E90FC40DCE3D81AF500D7C /* SonyConfigApp.swift in Sources */,
 				0CFDA5805AB1477E7FE6F145 /* ToneCurveView.swift in Sources */,
 				103BC7D4116C9467AC30B6ED /* WhiteBalanceGridView.swift in Sources */,
+				53FE6D0375719C8C9B3484B1 /* CameraTransport.swift in Sources */,
+				872CCE0E565CDBC3DB80C33A /* PtpIpWireClient.swift in Sources */,
+				6A8587870E07B808662D1F74 /* WifiTransport.swift in Sources */,
+				421EE92E93AC45D0D6A5D896 /* RecipeCameraClient.swift in Sources */,
+				15EE44A375DDBAB8A3B5B3D6 /* LocalStore.swift in Sources */,
+				680E722E0B6960237BCCAF55 /* PlainPtpIpWireClient.swift in Sources */,
+				2A615D2A5808A75DCF5E2A1D /* PtpKnownProperties.swift in Sources */,
+				257AD181401CAC9EAD495A66 /* DirectWifiTransport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -352,6 +427,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		4628E1E99A5864BA7C7AF880 /* XCRemoteSwiftPackageReference "libssh2-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Lakr233/libssh2-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		147FF1D8307B00BDC9BA7C6D /* CSSH2 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4628E1E99A5864BA7C7AF880 /* XCRemoteSwiftPackageReference "libssh2-spm" */;
+			productName = CSSH2;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E3918AFDFB241623B9069A87 /* Project object */;
 }
