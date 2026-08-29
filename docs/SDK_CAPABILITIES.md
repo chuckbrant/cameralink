@@ -12,6 +12,51 @@ connected camera (name, get/set-enabled flags, and current raw value) —
 used repeatedly below to confirm a property actually exists before
 trusting it.
 
+For the full picture beyond what this project happens to use, see
+[docs/reference/a7RV_all_properties.pdf](reference/a7RV_all_properties.pdf) —
+a complete dump of all 431 properties `GetDeviceProperties()` returns for
+this camera (code, name, Sony's own description text, current value,
+get/set flags), generated the same way as `/api/debug/allprops` above.
+Useful for anyone extending this project into properties it doesn't
+touch yet.
+
+## Every property this project reads or writes
+
+| Property (`CrDeviceProperty_...`) | Data type | Access | Used for |
+|---|---|---|---|
+| `CreativeLook` | `UInt16` | Read/Write | Preset selector (`ST`/`PT`/.../`CS1`-`CS6`) |
+| `CreativeLook_Contrast` | `Int8` | Read/Write | Creative Look sub-parameter |
+| `CreativeLook_Highlights` | `Int8` | Read/Write | Creative Look sub-parameter |
+| `CreativeLook_Shadows` | `Int8` | Read/Write | Creative Look sub-parameter |
+| `CreativeLook_Fade` | `Int8` | Read/Write | Creative Look sub-parameter |
+| `CreativeLook_Saturation` | `Int8` | Read/Write | Creative Look sub-parameter |
+| `CreativeLook_Sharpness` | `Int8` | Read/Write | Creative Look sub-parameter |
+| `CreativeLook_SharpnessRange` | `Int8` | Read/Write | Creative Look sub-parameter |
+| `CreativeLook_Clarity` | `Int8` | Read/Write | Creative Look sub-parameter |
+| `PictureProfile` | `UInt16` | Read-only | Slot selector (`Off`/`PP1`-`PP11`) -- see note below |
+| `WhiteBalance` | `UInt16` | Read/Write | WB mode |
+| `Colortemp` | `UInt16` | Read/Write | Kelvin value (when WB mode is Color Temp) |
+| `ColorTuningAB` | `UInt8Range` | Read/Write | Color Filter A-B axis |
+| `ColorTuningGM` | `UInt8Range` | Read/Write | Color Filter G-M axis |
+| `IsoSensitivity` | `UInt32` | Read/Write | ISO (bitfield-encoded, see below) |
+| `AspectRatio` | `UInt16` | Read/Write | `3:2`/`16:9`/`4:3`/`1:1` |
+| `FileType` | `UInt8` | Read/Write | `RAW`/`RAW+JPEG`/`JPEG` |
+| `ModelName` | `STR` | Read-only | `GET /api/camera-info` |
+| `BodySerialNumber` | `STR` | Read-only | `GET /api/camera-info` |
+| `SoftwareVersion` | `STR` | Read-only | `GET /api/camera-info` |
+| `LensModelName` | `STR` | Read-only | `GET /api/camera-info` |
+| `LensVersionNumber` | `STR` | Read-only | `GET /api/camera-info` |
+| `BatteryLevel` | enum | Read-only | `GET /api/camera-info` |
+| `BatteryRemain` | `Int8` | Read-only | `GET /api/camera-info` |
+| `MediaSLOT1_RemainingNumber` | `UInt32` | Read-only | `GET /api/camera-info` |
+| `MediaSLOT2_RemainingNumber` | `UInt32` | Read-only | `GET /api/camera-info` |
+| `WhiteBalancePresetColorTemperature` | -- | Neither (dead) | Looked promising, isn't -- see below |
+
+Every row is covered in more detail in its own section below (data type
+gotchas, calibration, dead ends). `DRO`/`HighIsoNR` were used by this
+project at one point and are documented further down even though they
+aren't currently wired in.
+
 ## Creative Look
 
 The camera's built-in JPEG "film look" system. One preset selector, plus
@@ -40,12 +85,17 @@ etc.) are accepted without error but silently don't change the sub-values.
 
 ## Picture Profile
 
-A slot selector (`Off`, `PP1`–`PP11`) is exposed and read/writable. The
-much larger set of per-profile sub-parameters (gamma, knee, color depth
-per channel, detail/sharpness curve) has real, documented `CrDeviceProperty`
-codes in the SDK headers but isn't wired into this project yet — it's a
-substantially bigger surface than Creative Look and wasn't needed for the
-film-recipe use case this project was built for.
+A slot selector (`Off`, `PP1`–`PP11`) is exposed and included in
+`GET /api/recipe` as `pictureProfileSlot` -- **read-only in this project's
+current code**, not read/write as an earlier version of this doc claimed.
+Nothing in `writeRecipeJson()` sets `CrDeviceProperty_PictureProfile`; the
+SDK property itself is documented as settable, this project just doesn't
+exercise that path. The much larger set of per-profile sub-parameters
+(gamma, knee, color depth per channel, detail/sharpness curve) has real,
+documented `CrDeviceProperty` codes in the SDK headers but isn't wired
+into this project at all yet — it's a substantially bigger surface than
+Creative Look and wasn't needed for the film-recipe use case this project
+was built for.
 
 ## White Balance
 
