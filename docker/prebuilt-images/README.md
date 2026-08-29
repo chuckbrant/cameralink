@@ -5,10 +5,11 @@ building it themselves — same code as [scripts/Dockerfile](../scripts/Dockerfi
 CrSDK-based, network/Wi-Fi connect only (no USB — see
 [docs/DOCKER.md](../docs/DOCKER.md) for why).
 
-- `mac-arm64/cameralink-mac-arm64.tar.gz` — Apple Silicon (M-series Mac),
-  for Docker Desktop.
-- `intel/cameralink-intel.tar.gz` — x86_64, for a NAS (Synology Container
-  Manager, etc.), a home server, or an Intel/AMD Linux box.
+- [`mac-arm64/cameralink-mac-arm64.tar.gz`](mac-arm64/cameralink-mac-arm64.tar.gz) —
+  Apple Silicon (M-series Mac), for Docker Desktop.
+- [`intel/cameralink-intel.tar.gz`](intel/cameralink-intel.tar.gz) —
+  x86_64, for a NAS (Synology Container Manager, etc.), a home server, or
+  an Intel/AMD Linux box.
 
 ## About the bundled Sony Camera Remote SDK
 
