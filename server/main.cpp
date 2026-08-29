@@ -676,12 +676,25 @@ std::string connectNetwork(const std::string& ip, const std::string& mac, const 
     CrInt32u packedIP = 0;
     for (int i = 3; i >= 0; i--) packedIP = (packedIP << 8) | (CrInt32u)(octets[i] & 0xFF);
 
+    // MAC is only really needed for the "find this camera's IP on
+    // CameraBrdg" lookup (/api/network/find) -- once you already have the
+    // IP, actual pairing/auth happens via userId/password + the SSH
+    // fingerprint below, keyed off the IP, not the MAC. So a blank MAC
+    // shouldn't be a hard error here; fall back to an all-zero placeholder
+    // rather than rejecting the request. NOT yet independently confirmed
+    // live that CrSDK's CreateCameraObjectInfoEthernetConnection is fully
+    // indifferent to a wrong/placeholder MAC end-to-end (only that it
+    // doesn't fail immediately with an SDK-level error) -- worth a real
+    // connect test with a placeholder MAC once the camera's reachable
+    // over Wi-Fi again.
     CrInt8u macBytes[6] = {0};
-    unsigned int b[6];
-    if (sscanf(mac.c_str(), "%x:%x:%x:%x:%x:%x", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) != 6) {
-        return "invalid MAC address";
+    if (!mac.empty()) {
+        unsigned int b[6];
+        if (sscanf(mac.c_str(), "%x:%x:%x:%x:%x:%x", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) != 6) {
+            return "invalid MAC address";
+        }
+        for (int i = 0; i < 6; i++) macBytes[i] = (CrInt8u)b[i];
     }
-    for (int i = 0; i < 6; i++) macBytes[i] = (CrInt8u)b[i];
 
     fprintf(stderr, "[connectNetwork] ip=%s packedIP=0x%x mac=%s macBytes=%02x:%02x:%02x:%02x:%02x:%02x userId=%s\n",
         ip.c_str(), packedIP, mac.c_str(),
