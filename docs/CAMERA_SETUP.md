@@ -61,9 +61,15 @@ curl -X POST http://<pi-ip>:8080/api/connect/network \
   -d '{"ip":"10.42.0.50","mac":"AA:BB:CC:DD:EE:FF","userId":"...","password":"..."}'
 ```
 
-## Known limitation: USB and Wi-Fi are mutually exclusive
+## Known limitation: USB data connections and Wi-Fi are mutually exclusive
 
-If the camera has a USB cable plugged in (even just for charging) while
-also trying to use Remote Shoot Function, the network connection will fail
-outright — the camera prioritizes USB and won't run both remote-control
-paths at once. Unplug USB from the camera before connecting over Wi-Fi.
+Power over USB is fine — a wall charger/power brick doesn't interfere
+with Remote Shoot Function at all. The conflict is specifically a **USB
+data connection to a computer**: if the camera is plugged into a computer
+over USB (even just to charge, since a computer's USB port still
+negotiates a data connection unless the camera's own USB mode is set to
+charge-only), it defaults to that USB connection and Wi-Fi won't work —
+the network connection will fail outright, since the camera won't run
+both remote-control paths at once. Unplug the camera from the computer
+(or set its USB connection mode to charge-only, if it has one) before
+connecting over Wi-Fi.
