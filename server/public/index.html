@@ -25,6 +25,7 @@
   select { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 6px; font-size: 14px; }
   .section { margin-top: 28px; }
   .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+  .saved-camera-row { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
   .wb { font-size: 13px; color: #aaa; margin-top: 4px; }
   .card { background: #1a1a1a; border: 1px solid #333; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
   .group-heading { font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.03em; margin: 20px 0 8px; }
@@ -58,6 +59,12 @@
   .netform.open { display: flex; }
   .netform input { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
   .footer { margin-top: 32px; }
+  .log-panel {
+    background: #0a0a0a; border: 1px solid #333; border-radius: 8px; padding: 10px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5;
+    color: #9fd89f; height: 180px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
+    margin: 0;
+  }
   .confirm { display: none; margin-top: 10px; font-size: 13px; color: #999; }
   .confirm.open { display: block; }
   .confirm .actions { display: flex; gap: 10px; margin-top: 8px; }
@@ -441,9 +448,20 @@
       document.getElementById("statusText").textContent = connected ? model : "Not connected";
     }
 
+    // Whether this server is running on the Pi field kit vs. a Docker/NAS
+    // deployment (server reports this via /api/status's "platform" field,
+    // set from the CAMERALINK_PLATFORM env var -- see scripts/cameralink.service).
+    // Only the Pi build has a physical power button/relay to shut down;
+    // "Shut Down Pi" on a container would shut down the NAS or Mac host
+    // instead, so the Setup tab only shows it once this is known true.
+    let isPi = false;
+
     async function pollStatus() {
       const s = await api("/api/status");
       setStatus(s.connected, s.model);
+      const wasPi = isPi;
+      isPi = s.platform === "pi";
+      if (isPi !== wasPi && activeTab === SETUP_TAB) renderTabContent();
     }
 
     function toggleNetForm() {
@@ -466,18 +484,30 @@
 
     async function doConnectNetwork(body) {
       document.getElementById("statusText").textContent = "Connecting...";
+      logLine("Connecting to " + (body.name || body.ip) + "...");
+      logLine("  IP: " + body.ip + (body.mac ? "   MAC: " + body.mac : ""));
+      logLine("  User: " + (body.userId || "(none)"));
+      const startedAt = performance.now();
       const r = await api("/api/connect/network", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!r.success) alert("Connect failed: " + r.error);
+      const elapsedMs = Math.round(performance.now() - startedAt);
+      if (!r.success) {
+        alert("Connect failed: " + r.error);
+        logLine("Connect FAILED after " + elapsedMs + "ms");
+        logLine("  Error: " + r.error);
+      }
       await pollStatus();
       if (r.success) {
         await refresh();
         loadCameraInfo();
-        showToast("Connected to " + document.getElementById("statusText").textContent);
+        const status = document.getElementById("statusText").textContent;
+        logLine("Connected in " + elapsedMs + "ms -- " + status);
+        showToast("Connected to " + status);
       }
+      logLine("");
     }
 
     async function connectNetwork() {
@@ -498,12 +528,130 @@
       if (!el) return;
       el.innerHTML = "";
       for (const cam of saved) {
+        const row = document.createElement("div");
+        row.className = "saved-camera-row";
+
         const btn = document.createElement("button");
         btn.className = "primary";
         btn.textContent = cam.name;
-        btn.addEventListener("click", () => doConnectNetwork(cam));
-        el.appendChild(btn);
+        btn.addEventListener("click", () => connectSavedCamera(cam));
+        row.appendChild(btn);
+
+        const pingBtn = document.createElement("button");
+        pingBtn.className = "small";
+        pingBtn.textContent = cam.name + " (Ping Test)";
+        pingBtn.addEventListener("click", () => pingSavedCamera(cam));
+        row.appendChild(pingBtn);
+
+        const findBtn = document.createElement("button");
+        findBtn.className = "small";
+        findBtn.textContent = cam.name + " (Find Camera)";
+        findBtn.addEventListener("click", () => findAndSaveCamera(cam));
+        row.appendChild(findBtn);
+
+        el.appendChild(row);
       }
+    }
+
+    // Looks up a saved camera's current IP by its MAC address (via the
+    // server's ARP-table/dnsmasq-lease lookup -- see findIpByMac() in
+    // main.cpp) and, if found, saves it back into this camera's saved
+    // profile so Connect/Ping Test have an up-to-date address without
+    // anyone needing to dig it out of the camera's own network settings.
+    // Only finds a MAC this process has already seen traffic from/to (a
+    // fresh ARP entry, or a DHCP lease) -- if the camera has never talked
+    // to this network, "Find Camera" won't have anything to go on yet.
+    async function findAndSaveCamera(cam) {
+      if (!cam.mac) { logLine(cam.name + ": no MAC address saved -- can't look it up."); return; }
+      logLine("Finding " + cam.name + " (MAC " + cam.mac + ")...");
+      const r = await api("/api/network/find?mac=" + encodeURIComponent(cam.mac));
+      if (!r.found) {
+        logLine(cam.name + ": not found on this network yet. The camera needs to have connected here at least once (or try again after a Ping Test/Connect attempt).");
+        logLine("");
+        return;
+      }
+      logLine(cam.name + ": found at " + r.ip);
+      if (r.ip === cam.ip) {
+        logLine("(already saved with this IP)");
+        logLine("");
+        return;
+      }
+      const save = await api("/api/network/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: cam.name, ip: r.ip, mac: cam.mac, userId: cam.userId, password: cam.password }),
+      });
+      if (!save.success) {
+        logLine("Failed to save updated IP: " + save.error);
+      } else {
+        logLine("Saved " + r.ip + " as " + cam.name + "'s IP.");
+        await loadSavedCameras();
+      }
+      logLine("");
+    }
+
+    // Saved cameras (e.g. added via "Find Camera" before ever connecting,
+    // or entered by hand) can have no IP yet. Rather than let Connect/Ping
+    // Test fail against a blank address, ask for one on the spot and save
+    // it back to this camera's profile so it's there next time too.
+    // Returns false (aborting the caller) only if the user cancels.
+    async function ensureCameraIp(cam) {
+      if (cam.ip) return true;
+      const ip = window.prompt("No IP address saved for " + cam.name + " yet. Enter its IP address:");
+      if (!ip) return false;
+      cam.ip = ip.trim();
+      const save = await api("/api/network/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: cam.name, ip: cam.ip, mac: cam.mac, userId: cam.userId, password: cam.password }),
+      });
+      if (save.success) await loadSavedCameras();
+      return true;
+    }
+
+    async function connectSavedCamera(cam) {
+      if (!(await ensureCameraIp(cam))) return;
+      await doConnectNetwork(cam);
+    }
+
+    async function pingSavedCamera(cam) {
+      if (!(await ensureCameraIp(cam))) return;
+      await pingTest(cam);
+    }
+
+    // Quick reachability check for a saved camera -- runs a ping from the
+    // server (not the browser, which can't ping) and streams the result
+    // into the Setup tab's log panel, distinct from the full PTP/IP
+    // connect attempt doConnectNetwork() makes.
+    async function pingTest(cam) {
+      logLine("Pinging " + cam.name + " (" + cam.ip + ")...");
+      const url = "/api/network/ping?ip=" + encodeURIComponent(cam.ip) + "&mac=" + encodeURIComponent(cam.mac || "");
+      const r = await api(url);
+      logLine(r.output.trim());
+      logLine(cam.name + ": " + (r.success ? "reachable" : "unreachable"));
+      if (r.success) {
+        if (r.macMatch === true) {
+          logLine("MAC check: matches " + cam.name + " (" + r.arpMac + ")");
+        } else if (r.macMatch === false) {
+          logLine("MAC check: does NOT match -- expected " + cam.mac + ", got " + r.arpMac + ". This is a different device.");
+        } else {
+          logLine("MAC check: unavailable (no ARP visibility on this network)");
+        }
+      }
+      logLine("");
+    }
+
+    function logLine(text) {
+      const el = document.getElementById("logOutput");
+      if (!el) return;
+      const time = new Date().toLocaleTimeString();
+      el.textContent += "[" + time + "] " + text + "\n";
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function clearLog() {
+      const el = document.getElementById("logOutput");
+      if (el) el.textContent = "";
     }
 
     async function saveQuickConnect() {
@@ -766,7 +914,7 @@
         container.innerHTML = `
           <div class="actions" id="savedCameras"></div>
           <div class="actions">
-            <button onclick="toggleNetForm()">Connect (Network)</button>
+            <button onclick="toggleNetForm()">Manual Connect Network</button>
             <button onclick="setupRefresh()">Refresh</button>
           </div>
           <div class="netform" id="netform">
@@ -783,6 +931,7 @@
           </div>
           <div id="cameraInfo" style="margin-top:20px;"></div>
 
+          ${isPi ? `
           <div class="footer">
             <button class="danger" onclick="toggleConfirm()">Shut Down Pi</button>
             <div class="confirm" id="confirm">
@@ -792,6 +941,15 @@
                 <button onclick="toggleConfirm()">Cancel</button>
               </div>
             </div>
+          </div>
+          ` : ""}
+
+          <div class="section">
+            <div class="card-head">
+              <h2 style="margin:0;">Log</h2>
+              <button class="small" onclick="clearLog()">Clear</button>
+            </div>
+            <pre class="log-panel" id="logOutput"></pre>
           </div>
         `;
         loadSavedCameras();

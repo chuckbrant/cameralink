@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -291,8 +292,11 @@ uint64_t fileTypeRaw(const std::string& name) {
 std::string jsonEscape(const std::string& s) {
     std::string out;
     for (char c : s) {
-        if (c == '"' || c == '\\') out += '\\';
-        out += c;
+        if (c == '"' || c == '\\') { out += '\\'; out += c; }
+        else if (c == '\n') out += "\\n";
+        else if (c == '\r') out += "\\r";
+        else if (c == '\t') out += "\\t";
+        else out += c;
     }
     return out;
 }
@@ -656,6 +660,61 @@ std::string findIpByMac(const std::string& macNorm) {
     return "";
 }
 
+// Reverse of findIpByMac() -- what MAC is ip currently resolving to. Used
+// by the ping test to confirm the thing that answered is actually the
+// saved camera, not some other device that picked up its IP over DHCP.
+// Reads the kernel's own ARP cache, so it only has an entry once the ip
+// has actually been talked to (e.g. right after pingHost() below) --
+// and only when this process shares an L2/ARP-relevant network with the
+// camera, which host networking (the Pi/NAS deployment) gives it but a
+// container on a NATed bridge network (e.g. local Docker Desktop dev)
+// does not; empty return means "unknown", not "no such device".
+std::string findMacByIp(const std::string& ip) {
+    std::ifstream arp("/proc/net/arp");
+    std::string line;
+    std::getline(arp, line); // header row
+    while (std::getline(arp, line)) {
+        std::istringstream iss(line);
+        std::string rowIp, hwType, flags, mac;
+        iss >> rowIp >> hwType >> flags >> mac;
+        if (rowIp == ip && mac != "00:00:00:00:00:00") return mac;
+    }
+    return "";
+}
+
+// Strict dotted-quad check -- the ip string is interpolated straight into
+// a shell command below, so this is the injection guard, not just input
+// validation. Reject anything that isn't 4 numeric octets.
+bool isValidIpv4(const std::string& ip) {
+    int octets = 0, digitsInOctet = 0;
+    for (char c : ip) {
+        if (c == '.') {
+            if (digitsInOctet == 0) return false;
+            octets++; digitsInOctet = 0;
+        } else if (isdigit((unsigned char)c)) {
+            if (++digitsInOctet > 3) return false;
+        } else {
+            return false;
+        }
+    }
+    return octets == 3 && digitsInOctet > 0;
+}
+
+// Runs `ping -c 4` against ip and returns its combined stdout/stderr, for
+// the Setup tab's "(Ping Test)" buttons -- a quick reachability check
+// before trying a full PTP/IP connect. ip must already be validated by
+// isValidIpv4() before this is called.
+std::string pingHost(const std::string& ip) {
+    std::string cmd = "ping -c 4 -W 2 " + ip + " 2>&1";
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) return "failed to start ping";
+    std::string output;
+    char buf[256];
+    while (fgets(buf, sizeof(buf), pipe)) output += buf;
+    pclose(pipe);
+    return output;
+}
+
 // ---------------------------------------------------------------------
 // HTTP server
 // ---------------------------------------------------------------------
@@ -667,9 +726,17 @@ int main() {
 
     svr.Get("/api/status", [](const httplib::Request&, httplib::Response& res) {
         std::lock_guard<std::mutex> lock(g_cameraMutex);
+        // CAMERALINK_PLATFORM=pi is set only by scripts/cameralink.service --
+        // Docker/NAS deployments never set it, so they default to "docker".
+        // The Setup tab uses this to hide "Shut Down Pi", which is
+        // meaningless (and would shut down the NAS/Mac host, not a Pi) when
+        // running in a container.
+        const char* platformEnv = std::getenv("CAMERALINK_PLATFORM");
+        std::string platform = platformEnv ? platformEnv : "docker";
         std::ostringstream json;
         json << "{\"connected\":" << (g_connected ? "true" : "false")
-             << ",\"model\":\"" << jsonEscape(g_modelName) << "\"}";
+             << ",\"model\":\"" << jsonEscape(g_modelName) << "\""
+             << ",\"platform\":\"" << jsonEscape(platform) << "\"}";
         res.set_content(json.str(), "application/json");
     });
 
@@ -700,6 +767,35 @@ int main() {
         std::ostringstream json;
         json << "{\"found\":" << (ip.empty() ? "false" : "true")
              << ",\"ip\":\"" << jsonEscape(ip) << "\"}";
+        res.set_content(json.str(), "application/json");
+    });
+
+    // expectedMac (optional) is the saved camera's MAC -- after pinging,
+    // the kernel's ARP cache should have a fresh entry for ip (assuming
+    // this process shares an L2/ARP-relevant network with it, i.e. host
+    // networking; see findMacByIp()), which we compare against it so the
+    // Setup tab can say whether what answered is actually the camera or
+    // just whatever device currently holds that IP.
+    svr.Get("/api/network/ping", [](const httplib::Request& req, httplib::Response& res) {
+        std::string ip = req.get_param_value("ip");
+        if (!isValidIpv4(ip)) {
+            res.set_content("{\"success\":false,\"output\":\"invalid IP address\"}", "application/json");
+            return;
+        }
+        std::string expectedMac = normalizeMac(req.get_param_value("mac"));
+        std::string output = pingHost(ip);
+        bool success = output.find(" 0% packet loss") != std::string::npos;
+        std::string arpMac = success ? findMacByIp(ip) : "";
+        std::ostringstream json;
+        json << "{\"success\":" << (success ? "true" : "false")
+             << ",\"output\":\"" << jsonEscape(output) << "\""
+             << ",\"arpMac\":\"" << jsonEscape(arpMac) << "\"";
+        if (!expectedMac.empty() && !arpMac.empty()) {
+            json << ",\"macMatch\":" << (normalizeMac(arpMac) == expectedMac ? "true" : "false");
+        } else {
+            json << ",\"macMatch\":null";
+        }
+        json << "}";
         res.set_content(json.str(), "application/json");
     });
 
@@ -917,7 +1013,17 @@ int main() {
         res.set_content(json.str(), "application/json");
     });
 
+    // Refuses unless CAMERALINK_PLATFORM=pi (see /api/status above) -- this
+    // runs `sudo shutdown -h now` on whatever host the process is on, which
+    // on a Docker/NAS deployment would be the NAS or Mac host itself, not
+    // a Pi. The Setup tab already hides the button off-Pi; this is the
+    // server-side backstop for a stray/manual request.
     svr.Post("/api/system/shutdown", [](const httplib::Request&, httplib::Response& res) {
+        const char* platformEnv = std::getenv("CAMERALINK_PLATFORM");
+        if (!platformEnv || std::string(platformEnv) != "pi") {
+            res.set_content("{\"success\":false,\"error\":\"shutdown is only available on the Pi build\"}", "application/json");
+            return;
+        }
         res.set_content("{\"success\":true}", "application/json");
         std::thread([]() {
             std::this_thread::sleep_for(std::chrono::milliseconds(500));

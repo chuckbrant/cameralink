@@ -23,7 +23,7 @@ RUN g++ -std=c++17 -pthread -fstack-protector-all \
     -o /build/cameralink_server
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends libssh2-1 \
+RUN apt-get update && apt-get install -y --no-install-recommends libssh2-1 iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /build/cameralink_server /app/cameralink_server
