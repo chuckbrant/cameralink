@@ -1,28 +1,25 @@
-// SonyConfig web app -- minimal REST backend over CrSDK, single binary,
-// serves the static frontend from ./public.
+// SonyConfig web app -- minimal REST backend over a native PTP/IP client
+// (server/ptpip_client.h), single binary, serves the static frontend from
+// ./public. This branch has ZERO Sony CrSDK dependency -- see
+// ptpip_client.h for the protocol notes summary and the (private,
+// not-in-this-repo) research doc it points to for the full writeup.
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
-#include <map>
-#include <future>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include "CrDeviceProperty.h"
-#include "CameraRemote_SDK.h"
-#include "IDeviceCallback.h"
-#include "CrControlCode.h"
-#include "CrDebugString.h"
+#include "ptpip_client.h"
 #include "httplib.h"
-
-namespace SDK = SCRSDK;
 
 // ---------------------------------------------------------------------
 // Built-in film recipe presets, transcribed from film_recipe_charts.pdf
@@ -31,13 +28,6 @@ namespace SDK = SCRSDK;
 // Color Filter A-B/G-M via colorFilterAB/colorFilterGM, ISO). "Base ISO"
 // is shown as an informational note only (the film stock's real-world
 // ISO rating, not a camera property).
-//
-// Other approximated preset packs (Fujifilm Simulation, JP/PS Presets,
-// Micro Four Nerds -- all ported from a companion app's Lightroom/
-// CoreImage grades) were removed: they were never going to reproduce a
-// Lightroom edit through Sony's 8 Creative Look knobs convincingly, and
-// were replaced by a user-managed Saved Recipes library instead (see
-// GET/POST /api/recipes/*).
 // ---------------------------------------------------------------------
 const char* kPresetsJson = R"JSON([
   {
@@ -149,290 +139,150 @@ const char* kPresetsJson = R"JSON([
   }
 ])JSON";
 
-
 // ---------------------------------------------------------------------
 // Camera session state (single global session -- one camera at a time)
 // ---------------------------------------------------------------------
 
 std::mutex g_cameraMutex;
-bool g_sdkInitialized = false;
 bool g_connected = false;
 std::string g_modelName;
-int64_t g_deviceHandle = 0;
-
-std::mutex g_eventPromiseMutex;
-std::promise<void>* g_eventPromise = nullptr;
-void setEventPromise(std::promise<void>* p) {
-    std::lock_guard<std::mutex> lock(g_eventPromiseMutex);
-    g_eventPromise = p;
-}
-
-// RAII guard: clears g_eventPromise on scope exit no matter which return
-// path is taken (success, early error, or timeout). Without this, a
-// timed-out wait_for() leaves g_eventPromise dangling at a destroyed
-// std::promise -- a late SDK callback then calls set_value()/set_exception()
-// on freed memory, which can crash the whole process.
-struct EventPromiseGuard {
-    explicit EventPromiseGuard(std::promise<void>* p) { setEventPromise(p); }
-    ~EventPromiseGuard() { setEventPromise(nullptr); }
-};
-
-class DeviceCallback : public SDK::IDeviceCallback {
-public:
-    void OnConnected(SDK::DeviceConnectionVersioin) override {
-        g_connected = true;
-        std::lock_guard<std::mutex> lock(g_eventPromiseMutex);
-        if (g_eventPromise) {
-            try { g_eventPromise->set_value(); } catch (const std::future_error&) {}
-            g_eventPromise = nullptr;
-        }
-    }
-    void OnError(CrInt32u error) override {
-        fprintf(stderr, "[camera] error 0x%x\n", error);
-        std::lock_guard<std::mutex> lock(g_eventPromiseMutex);
-        if (g_eventPromise) {
-            try {
-                g_eventPromise->set_exception(std::make_exception_ptr(std::runtime_error("error")));
-            } catch (const std::future_error&) {}
-            g_eventPromise = nullptr;
-        }
-    }
-    void OnDisconnected(CrInt32u) override {
-        g_connected = false;
-    }
-};
-
-DeviceCallback g_callback;
-
-void ensureSdkInit() {
-    if (!g_sdkInitialized) {
-        SDK::Init();
-        g_sdkInitialized = true;
-    }
-}
+PtpIpClient g_client;
 
 // ---------------------------------------------------------------------
-// Creative Look property field table -- shared by read and write
+// Creative Look property field table -- shared by read and write.
+// Wire property codes + encodings from the protocol notes (session 1/2).
 // ---------------------------------------------------------------------
 
 struct Field {
     std::string key;
-    CrInt32u code;
-    SDK::CrDataType setType;
+    uint16_t code;
+    int width;
+    bool signedValue;
     int minValue;
     int maxValue;
 };
 
 // Ranges confirmed from Sony's own a7R V Help Guide (Creative Look section) --
 // note these are NOT uniformly -9..9: Sharpness and Clarity are 0..9, and
-// Sharpness Range is 1..5. Sending an out-of-range value (e.g. a negative
-// Sharpness) is silently accepted by SetDeviceProperty (returns
-// CrError_None) but never actually applied by the camera -- clamp here so
-// that can't happen again.
+// Sharpness Range is 1..5.
 const std::vector<Field>& creativeLookFields() {
     static const std::vector<Field> fields = {
-        {"contrast",       SDK::CrDeviceProperty_CreativeLook_Contrast,       SDK::CrDataType_Int8, -9, 9},
-        {"highlights",     SDK::CrDeviceProperty_CreativeLook_Highlights,     SDK::CrDataType_Int8, -9, 9},
-        {"shadows",        SDK::CrDeviceProperty_CreativeLook_Shadows,        SDK::CrDataType_Int8, -9, 9},
-        {"fade",           SDK::CrDeviceProperty_CreativeLook_Fade,           SDK::CrDataType_Int8, 0, 9},
-        {"saturation",     SDK::CrDeviceProperty_CreativeLook_Saturation,     SDK::CrDataType_Int8, -9, 9},
-        {"sharpness",      SDK::CrDeviceProperty_CreativeLook_Sharpness,      SDK::CrDataType_Int8, 0, 9},
-        {"sharpnessRange", SDK::CrDeviceProperty_CreativeLook_SharpnessRange, SDK::CrDataType_Int8, 1, 5},
-        {"clarity",        SDK::CrDeviceProperty_CreativeLook_Clarity,        SDK::CrDataType_Int8, 0, 9},
+        {"contrast",       0xD0FB, 1, true, -9, 9},
+        {"highlights",     0xD0FC, 1, true, -9, 9},
+        {"shadows",        0xD0FD, 1, true, -9, 9},
+        {"fade",           0xD0FE, 1, true, 0, 9},
+        {"saturation",     0xD0FF, 1, true, -9, 9},
+        {"sharpness",      0xD100, 1, true, 0, 9},
+        {"sharpnessRange", 0xD101, 1, true, 1, 5},
+        {"clarity",        0xD102, 1, true, 0, 9},
     };
     return fields;
 }
 
-int64_t decodeSigned(const SDK::CrDeviceProperty& p) {
-    SDK::CrDataType type = p.GetValueType();
-    bool isSigned = (type & 0x1000) != 0;
-    uint32_t width = type & 0x000F;
-    CrInt64u raw = p.GetCurrentValue();
-    if (!isSigned) return (int64_t)raw;
-    if (width == 1) return (int64_t)(int8_t)raw;
-    if (width == 2) return (int64_t)(int16_t)raw;
-    if (width == 3) return (int64_t)(int32_t)raw;
-    return (int64_t)raw;
-}
-
-// CrDataType_STR properties (ModelName, BodySerialNumber, LensModelName,
-// LensVersionNumber) don't use GetCurrentValue() at all -- the string
-// lives in GetCurrentStr(), a null-terminated CrInt16u* (UTF-16). Values
-// seen so far (model names, serial numbers) are plain ASCII, so a
-// truncating per-unit cast is enough; this doesn't handle non-ASCII text.
-// The very first CrInt16u unit is a length prefix (string length including
-// the null terminator), not a character -- confirmed empirically: reading
-// this naively produced a stray leading control character whose value
-// exactly matched (real string length + 1) for both ModelName ("\n" =
-// 0x0A = len("ILCE-7RM5")+1) and BodySerialNumber ("\t" = 0x09 =
-// len("01384122")+1) on the real camera. Skip index 0.
-std::string decodeCrStr(const SDK::CrDeviceProperty& p) {
-    CrInt16u* wstr = p.GetCurrentStr();
-    if (!wstr || wstr[0] == 0) return "";
-    std::string result;
-    for (CrInt16u* c = wstr + 1; *c != 0; c++) result += (char)(*c & 0xFF);
-    return result;
-}
-
-// CrBatteryLevel is a bitfield-ish enum: a coarse level (PreEnd/1_4../3_3)
-// OR'd against a USB-power-supply offset (0x10000), plus two sentinel
-// values (Fake, BatteryNotInstalled). BatteryRemain (%) is the precise
-// number; this is just the coarse icon-level indicator.
-std::string batteryLevelName(CrInt64u raw) {
-    switch (raw) {
-        case SDK::CrBatteryLevel_PreEndBattery: return "Nearly Empty";
-        case SDK::CrBatteryLevel_1_4: return "1/4";
-        case SDK::CrBatteryLevel_2_4: return "2/4";
-        case SDK::CrBatteryLevel_3_4: return "3/4";
-        case SDK::CrBatteryLevel_4_4: return "4/4";
-        case SDK::CrBatteryLevel_1_3: return "1/3";
-        case SDK::CrBatteryLevel_2_3: return "2/3";
-        case SDK::CrBatteryLevel_3_3: return "3/3";
-        case SDK::CrBatteryLevel_USBPowerSupply: return "USB Power";
-        case SDK::CrBatteryLevel_PreEnd_PowerSupply: return "Nearly Empty (USB Power)";
-        case SDK::CrBatteryLevel_1_4_PowerSupply: return "1/4 (USB Power)";
-        case SDK::CrBatteryLevel_2_4_PowerSupply: return "2/4 (USB Power)";
-        case SDK::CrBatteryLevel_3_4_PowerSupply: return "3/4 (USB Power)";
-        case SDK::CrBatteryLevel_4_4_PowerSupply: return "4/4 (USB Power)";
-        case SDK::CrBatteryLevel_Fake: return "N/A";
-        case SDK::CrBatteryLevel_BatteryNotInstalled: return "No Battery";
-        default: return "Unknown";
-    }
-}
+constexpr uint16_t kPropPreset = 0xD0FA;
+constexpr uint16_t kPropWhiteBalance = 0x5005;
+constexpr uint16_t kPropColorTempK = 0xD20F;
+constexpr uint16_t kPropColorTuningAB = 0xD21C;
+constexpr uint16_t kPropColorTuningGM = 0xD210;
+constexpr uint16_t kPropIso = 0xD21E;
+constexpr uint16_t kPropAspectRatio = 0xD211;
+constexpr uint16_t kPropFileType = 0xD253;
 
 // ColorTuningAB/ColorTuningGM calibration -- confirmed empirically against
-// the real a7R V (192=neutral, 220=A/G+7, 164=B/M-7), and matches Sony's
-// own documented raw range exactly: 0x9C(156,"B9")..0xE4(228,"A9"/"G9"),
-// center 192, 4 raw units per on-screen step. Positive = A (amber) / G
-// (green); negative = B (blue) / M (magenta).
+// the real a7R V (192=neutral, 220=A/G+7, 164=B/M-7): center 192, 4 raw
+// units per on-screen step. Positive = A (amber) / G (green); negative =
+// B (blue) / M (magenta).
 constexpr int kColorTuningCenter = 192;
 constexpr int kColorTuningStep = 4;
 constexpr int kColorTuningMinRaw = 156;
 constexpr int kColorTuningMaxRaw = 228;
 
-int colorTuningToOnscreen(CrInt64u raw) {
+int colorTuningToOnscreen(int64_t raw) {
     return ((int)raw - kColorTuningCenter) / kColorTuningStep;
 }
-
-CrInt64u colorTuningFromOnscreen(int onscreen) {
+uint64_t colorTuningFromOnscreen(int onscreen) {
     int raw = kColorTuningCenter + onscreen * kColorTuningStep;
     raw = std::max(kColorTuningMinRaw, std::min(kColorTuningMaxRaw, raw));
-    return (CrInt64u)raw;
+    return (uint64_t)raw;
 }
 
-std::string presetName(CrInt64u raw) {
+// Wire values confirmed empirically -- see protocol notes ("Value enum
+// tables"). Presets follow a clean sequential ordinal matching the SDK
+// header's declared order; Custom Looks are 0x100+slot.
+std::string presetName(int64_t raw) {
     switch (raw) {
-        case SDK::CrCreativeLook_ST:  return "ST";
-        case SDK::CrCreativeLook_PT:  return "PT";
-        case SDK::CrCreativeLook_NT:  return "NT";
-        case SDK::CrCreativeLook_VV:  return "VV";
-        case SDK::CrCreativeLook_VV2: return "VV2";
-        case SDK::CrCreativeLook_FL:  return "FL";
-        case SDK::CrCreativeLook_IN:  return "IN";
-        case SDK::CrCreativeLook_SH:  return "SH";
-        case SDK::CrCreativeLook_BW:  return "BW";
-        case SDK::CrCreativeLook_SE:  return "SE";
+        case 1: return "ST"; case 2: return "PT"; case 3: return "NT";
+        case 4: return "VV"; case 5: return "VV2"; case 6: return "FL";
+        case 7: return "IN"; case 8: return "SH"; case 9: return "BW";
+        case 10: return "SE";
         default:
-            if (raw >= SDK::CrCreativeLook_CustomLookOffset) {
-                return "CS" + std::to_string(raw - SDK::CrCreativeLook_CustomLookOffset);
-            }
+            if (raw >= 0x101) return "CS" + std::to_string(raw - 0x100);
             return "ST";
     }
 }
-
-CrInt64u presetRaw(const std::string& name) {
-    if (name == "ST")  return SDK::CrCreativeLook_ST;
-    if (name == "PT")  return SDK::CrCreativeLook_PT;
-    if (name == "NT")  return SDK::CrCreativeLook_NT;
-    if (name == "VV")  return SDK::CrCreativeLook_VV;
-    if (name == "VV2") return SDK::CrCreativeLook_VV2;
-    if (name == "FL")  return SDK::CrCreativeLook_FL;
-    if (name == "IN")  return SDK::CrCreativeLook_IN;
-    if (name == "SH")  return SDK::CrCreativeLook_SH;
-    if (name == "BW")  return SDK::CrCreativeLook_BW;
-    if (name == "SE")  return SDK::CrCreativeLook_SE;
+uint64_t presetRaw(const std::string& name) {
+    if (name == "ST") return 1; if (name == "PT") return 2; if (name == "NT") return 3;
+    if (name == "VV") return 4; if (name == "VV2") return 5; if (name == "FL") return 6;
+    if (name == "IN") return 7; if (name == "SH") return 8; if (name == "BW") return 9;
+    if (name == "SE") return 10;
     if (name.rfind("CS", 0) == 0) {
         int slot = std::stoi(name.substr(2));
-        if (slot >= 1) return SDK::CrCreativeLook_CustomLookOffset + slot;
+        if (slot >= 1) return 0x100 + slot;
     }
-    return SDK::CrCreativeLook_ST;
+    return 1;
 }
 
-std::string pictureProfileSlotName(CrInt64u raw) {
-    if (raw == SDK::CrPictureProfile_Off) return "Off";
-    if (raw >= SDK::CrPictureProfile_Number1 && raw <= SDK::CrPictureProfile_Number11) {
-        return "PP" + std::to_string(raw - SDK::CrPictureProfile_Number1 + 1);
-    }
-    return "Off";
-}
-
-std::string whiteBalanceModeName(CrInt64u raw) {
+// WhiteBalance base values (AWB/Daylight/Fluorescent/Tungsten/Flash) match
+// the standard PTP WhiteBalance enum exactly; Sony's extras (Cloudy/Shade/
+// ColorTemp) use a clean sequential vendor range 0x8010-0x8012.
+std::string whiteBalanceModeName(int64_t raw) {
     switch (raw) {
-        case SDK::CrWhiteBalance_AWB: return "AWB";
-        case SDK::CrWhiteBalance_Underwater_Auto: return "Underwater Auto";
-        case SDK::CrWhiteBalance_Daylight: return "Daylight";
-        case SDK::CrWhiteBalance_Shadow: return "Shade";
-        case SDK::CrWhiteBalance_Cloudy: return "Cloudy";
-        case SDK::CrWhiteBalance_Tungsten: return "Tungsten";
-        case SDK::CrWhiteBalance_Fluorescent: return "Fluorescent";
-        case SDK::CrWhiteBalance_Fluorescent_WarmWhite: return "Fluorescent (Warm White)";
-        case SDK::CrWhiteBalance_Fluorescent_CoolWhite: return "Fluorescent (Cool White)";
-        case SDK::CrWhiteBalance_Fluorescent_DayWhite: return "Fluorescent (Day White)";
-        case SDK::CrWhiteBalance_Fluorescent_Daylight: return "Fluorescent (Daylight)";
-        case SDK::CrWhiteBalance_Flush: return "Flash";
-        case SDK::CrWhiteBalance_ColorTemp: return "Color Temp";
-        case SDK::CrWhiteBalance_Custom_1: return "Custom 1";
-        case SDK::CrWhiteBalance_Custom_2: return "Custom 2";
-        case SDK::CrWhiteBalance_Custom_3: return "Custom 3";
-        case SDK::CrWhiteBalance_Custom: return "Custom";
+        case 2: return "AWB";
+        case 4: return "Daylight";
+        case 5: return "Fluorescent";
+        case 6: return "Tungsten";
+        case 7: return "Flash";
+        case 0x8010: return "Cloudy";
+        case 0x8011: return "Shade";
+        case 0x8012: return "Color Temp";
         default: return "Unknown (" + std::to_string(raw) + ")";
     }
 }
-
-CrInt64u whiteBalanceModeRaw(const std::string& name) {
-    if (name == "AWB") return SDK::CrWhiteBalance_AWB;
-    if (name == "Daylight") return SDK::CrWhiteBalance_Daylight;
-    if (name == "Shade") return SDK::CrWhiteBalance_Shadow;
-    if (name == "Cloudy") return SDK::CrWhiteBalance_Cloudy;
-    if (name == "Tungsten") return SDK::CrWhiteBalance_Tungsten;
-    if (name == "Fluorescent") return SDK::CrWhiteBalance_Fluorescent;
-    if (name == "Flash") return SDK::CrWhiteBalance_Flush;
-    if (name == "ColorTemp") return SDK::CrWhiteBalance_ColorTemp;
-    return SDK::CrWhiteBalance_AWB;
+uint64_t whiteBalanceModeRaw(const std::string& name) {
+    if (name == "AWB") return 2;
+    if (name == "Daylight") return 4;
+    if (name == "Fluorescent") return 5;
+    if (name == "Tungsten") return 6;
+    if (name == "Flash") return 7;
+    if (name == "Cloudy") return 0x8010;
+    if (name == "Shade") return 0x8011;
+    if (name == "ColorTemp") return 0x8012;
+    return 2;  // AWB
 }
 
-std::string aspectRatioName(CrInt64u raw) {
+std::string aspectRatioName(int64_t raw) {
     switch (raw) {
-        case SDK::CrAspectRatio_3_2: return "3:2";
-        case SDK::CrAspectRatio_16_9: return "16:9";
-        case SDK::CrAspectRatio_4_3: return "4:3";
-        case SDK::CrAspectRatio_1_1: return "1:1";
+        case 1: return "3:2"; case 2: return "16:9"; case 3: return "4:3"; case 4: return "1:1";
         default: return "3:2";
     }
 }
-CrInt64u aspectRatioRaw(const std::string& name) {
-    if (name == "3:2") return SDK::CrAspectRatio_3_2;
-    if (name == "16:9") return SDK::CrAspectRatio_16_9;
-    if (name == "4:3") return SDK::CrAspectRatio_4_3;
-    if (name == "1:1") return SDK::CrAspectRatio_1_1;
-    return SDK::CrAspectRatio_3_2;
+uint64_t aspectRatioRaw(const std::string& name) {
+    if (name == "3:2") return 1; if (name == "16:9") return 2;
+    if (name == "4:3") return 3; if (name == "1:1") return 4;
+    return 1;
 }
 
-// Only the three most common file types are offered here (RawHeif/Heif
-// omitted). All three confirmed working live -- see writeRecipeJson.
-std::string fileTypeName(CrInt64u raw) {
+// RAW's wire value (1) is inferred by elimination, not independently
+// captured -- see protocol notes.
+std::string fileTypeName(int64_t raw) {
     switch (raw) {
-        case SDK::CrFileType_Raw: return "RAW";
-        case SDK::CrFileType_RawJpeg: return "RAW+JPEG";
-        case SDK::CrFileType_Jpeg: return "JPEG";
+        case 1: return "RAW"; case 2: return "RAW+JPEG"; case 3: return "JPEG";
         default: return "RAW";
     }
 }
-CrInt64u fileTypeRaw(const std::string& name) {
-    if (name == "RAW") return SDK::CrFileType_Raw;
-    if (name == "RAW+JPEG") return SDK::CrFileType_RawJpeg;
-    if (name == "JPEG") return SDK::CrFileType_Jpeg;
-    return SDK::CrFileType_Raw;
+uint64_t fileTypeRaw(const std::string& name) {
+    if (name == "RAW") return 1; if (name == "RAW+JPEG") return 2; if (name == "JPEG") return 3;
+    return 1;
 }
 
 // ---------------------------------------------------------------------
@@ -442,14 +292,15 @@ CrInt64u fileTypeRaw(const std::string& name) {
 std::string jsonEscape(const std::string& s) {
     std::string out;
     for (char c : s) {
-        if (c == '"' || c == '\\') out += '\\';
-        out += c;
+        if (c == '"' || c == '\\') { out += '\\'; out += c; }
+        else if (c == '\n') out += "\\n";
+        else if (c == '\r') out += "\\r";
+        else if (c == '\t') out += "\\t";
+        else out += c;
     }
     return out;
 }
 
-// Extracts a numeric or string value for "key" from a flat JSON object.
-// Returns false if the key isn't present. Minimal, not a general parser.
 bool jsonFindNumber(const std::string& body, const std::string& key, double& out) {
     std::string needle = "\"" + key + "\"";
     size_t pos = body.find(needle);
@@ -480,10 +331,6 @@ bool jsonFindString(const std::string& body, const std::string& key, std::string
     return true;
 }
 
-// Minimal parse/serialize for saved_cameras.json -- a flat array of
-// {name, ip, mac, userId, password} objects. Brace-matches each object,
-// then reuses jsonFindString per known key -- avoids needing a real JSON
-// library for a file this simple.
 std::vector<std::map<std::string, std::string>> parseSavedCameras(const std::string& content) {
     std::vector<std::map<std::string, std::string>> result;
     size_t pos = 0;
@@ -527,18 +374,10 @@ std::string serializeSavedCameras(const std::vector<std::map<std::string, std::s
 }
 
 // ---------------------------------------------------------------------
-// Saved Recipes -- a 10-slot, user-managed library (separate from the
-// built-in film-chart presets above). Recipe payloads are kept as
-// opaque JSON blobs rather than parsed field-by-field: the frontend
-// already knows the exact shape of a "recipe" (whatever the Custom tab
-// currently supports -- Creative Look fields, WB, ISO, DRO, etc.), so
-// the backend just stores/returns that JSON verbatim under a slot
-// number and a name, doing text-level surgery (brace-matching) for
-// create/rename/delete rather than needing a real JSON parser.
+// Saved Recipes -- a 10-slot, user-managed library. Recipe payloads are
+// kept as opaque JSON blobs (see cameralink's original design notes).
 // ---------------------------------------------------------------------
 
-// Returns the raw substring of a JSON object value for `key` (from its
-// opening '{' through its matching closing '}'), or "" if not found.
 std::string jsonFindRawObject(const std::string& body, const std::string& key) {
     std::string needle = "\"" + key + "\"";
     size_t pos = body.find(needle);
@@ -558,7 +397,6 @@ std::string jsonFindRawObject(const std::string& body, const std::string& key) {
     return body.substr(start, i - start);
 }
 
-// Spans of each top-level {...} object within a JSON array's text.
 std::vector<std::pair<size_t, size_t>> findTopLevelObjectSpans(const std::string& content) {
     std::vector<std::pair<size_t, size_t>> spans;
     size_t pos = 0;
@@ -598,8 +436,6 @@ int extractSlotNumber(const std::string& obj) {
     return -1;
 }
 
-// Removes the top-level object (plus one adjacent comma, so the array
-// stays valid) whose "slot" matches, if present. Returns true if found.
 bool removeSavedRecipeSlot(std::string& content, int targetSlot) {
     auto spans = findTopLevelObjectSpans(content);
     for (auto it = spans.rbegin(); it != spans.rend(); ++it) {
@@ -625,127 +461,16 @@ bool removeSavedRecipeSlot(std::string& content, int targetSlot) {
 // Camera operations
 // ---------------------------------------------------------------------
 
-std::string connectUsb() {
-    std::lock_guard<std::mutex> lock(g_cameraMutex);
-    ensureSdkInit();
-
-    SDK::ICrEnumCameraObjectInfo* enumInfo = nullptr;
-    SDK::CrError enumErr = SDK::EnumCameraObjects(&enumInfo, 3);
-    CrInt32u count = enumInfo ? enumInfo->GetCount() : 0;
-    if (enumErr || !enumInfo || count == 0) {
-        if (enumInfo) enumInfo->Release();
-        return "no camera found over USB";
-    }
-
-    const SDK::ICrCameraObjectInfo* info = enumInfo->GetCameraObjectInfo(0);
-    g_modelName = info->GetModel() ? info->GetModel() : "Sony Camera";
-
-    std::promise<void> eventPromise;
-    std::future<void> eventFuture = eventPromise.get_future();
-    EventPromiseGuard guard(&eventPromise);
-
-    SDK::CrError connectErr = SDK::Connect(
-        const_cast<SDK::ICrCameraObjectInfo*>(info), &g_callback, &g_deviceHandle,
-        SDK::CrSdkControlMode_Remote, SDK::CrReconnecting_ON);
-    enumInfo->Release();
-    if (connectErr) {
-        char buf[64]; snprintf(buf, sizeof(buf), "Connect() failed 0x%x", connectErr);
-        return buf;
-    }
-
-    auto status = eventFuture.wait_for(std::chrono::seconds(15));
-    if (status != std::future_status::ready) return "timed out waiting for connection";
-    try { eventFuture.get(); } catch (...) { return "connection error"; }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    return "";
-}
-
 std::string connectNetwork(const std::string& ip, const std::string& mac, const std::string& userId, const std::string& password) {
     std::lock_guard<std::mutex> lock(g_cameraMutex);
-    ensureSdkInit();
-
-    std::vector<int> octets;
-    size_t pos = 0, next;
-    while ((next = ip.find('.', pos)) != std::string::npos) {
-        octets.push_back(std::stoi(ip.substr(pos, next - pos)));
-        pos = next + 1;
+    (void)mac;  // not needed by the native client -- SSH connects by IP directly
+    std::string error;
+    if (!g_client.Connect(ip, userId, password, &error)) {
+        g_connected = false;
+        return error;
     }
-    octets.push_back(std::stoi(ip.substr(pos)));
-    if (octets.size() != 4) return "invalid IP address";
-    CrInt32u packedIP = 0;
-    for (int i = 3; i >= 0; i--) packedIP = (packedIP << 8) | (CrInt32u)(octets[i] & 0xFF);
-
-    // MAC is only really needed for the "find this camera's IP on
-    // CameraBrdg" lookup (/api/network/find) -- once you already have the
-    // IP, actual pairing/auth happens via userId/password + the SSH
-    // fingerprint below, keyed off the IP, not the MAC. So a blank MAC
-    // shouldn't be a hard error here; fall back to an all-zero placeholder
-    // rather than rejecting the request. NOT yet independently confirmed
-    // live that CrSDK's CreateCameraObjectInfoEthernetConnection is fully
-    // indifferent to a wrong/placeholder MAC end-to-end (only that it
-    // doesn't fail immediately with an SDK-level error) -- worth a real
-    // connect test with a placeholder MAC once the camera's reachable
-    // over Wi-Fi again.
-    CrInt8u macBytes[6] = {0};
-    if (!mac.empty()) {
-        unsigned int b[6];
-        if (sscanf(mac.c_str(), "%x:%x:%x:%x:%x:%x", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) != 6) {
-            return "invalid MAC address";
-        }
-        for (int i = 0; i < 6; i++) macBytes[i] = (CrInt8u)b[i];
-    }
-
-    fprintf(stderr, "[connectNetwork] ip=%s packedIP=0x%x mac=%s macBytes=%02x:%02x:%02x:%02x:%02x:%02x userId=%s\n",
-        ip.c_str(), packedIP, mac.c_str(),
-        macBytes[0], macBytes[1], macBytes[2], macBytes[3], macBytes[4], macBytes[5], userId.c_str());
-    fflush(stderr);
-
-    SDK::ICrCameraObjectInfo* cameraInfo = nullptr;
-    SDK::CrError createErr = SDK::CreateCameraObjectInfoEthernetConnection(
-        &cameraInfo, SDK::CrCameraDeviceModel_ILCE_7RM5, packedIP, macBytes, 1);
-    if (createErr || !cameraInfo) {
-        char buf[96]; snprintf(buf, sizeof(buf), "CreateCameraObjectInfoEthernetConnection failed 0x%x", createErr);
-        return buf;
-    }
-
-    char fpBuf[512] = {0};
-    CrInt32u fpSize = sizeof(fpBuf);
-    SDK::CrError fpErr = SDK::GetFingerprint(cameraInfo, fpBuf, &fpSize);
-    if (fpErr) {
-        cameraInfo->Release();
-        // 0x8218 = CrError_Connect_SSH_GetFingerprintFailed. Despite an
-        // earlier guess baked into this message, this has nothing to do
-        // with USB -- it means the camera's SSH host key fingerprint
-        // couldn't be retrieved, most often because Remote Shoot Function
-        // was toggled off/on since the last pairing (which regenerates the
-        // camera's User/Password/Fingerprint -- see docs/CAMERA_SETUP.md)
-        // and the credentials being used here are now stale.
-        char buf[160]; snprintf(buf, sizeof(buf), "GetFingerprint failed 0x%x (stale pairing? re-check the camera's Access Authen. Info screen -- credentials regenerate when Remote Shoot Function is toggled off/on)", fpErr);
-        return buf;
-    }
-
     g_modelName = "a7R V (network)";
-
-    std::promise<void> eventPromise;
-    std::future<void> eventFuture = eventPromise.get_future();
-    EventPromiseGuard guard(&eventPromise);
-
-    SDK::CrError connectErr = SDK::Connect(
-        cameraInfo, &g_callback, &g_deviceHandle,
-        SDK::CrSdkControlMode_Remote, SDK::CrReconnecting_ON,
-        userId.c_str(), password.c_str(), fpBuf, fpSize);
-    cameraInfo->Release();
-    if (connectErr) {
-        char buf[64]; snprintf(buf, sizeof(buf), "Connect() failed 0x%x", connectErr);
-        return buf;
-    }
-
-    auto status = eventFuture.wait_for(std::chrono::seconds(20));
-    if (status != std::future_status::ready) return "timed out waiting for connection";
-    try { eventFuture.get(); } catch (...) { return "connection error"; }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    g_connected = true;
     return "";
 }
 
@@ -753,86 +478,70 @@ std::string readRecipeJson() {
     std::lock_guard<std::mutex> lock(g_cameraMutex);
     if (!g_connected) return "{\"error\":\"not connected\"}";
 
-    std::vector<CrInt32u> codes = {
-        SDK::CrDeviceProperty_CreativeLook,
-        SDK::CrDeviceProperty_PictureProfile,
-        SDK::CrDeviceProperty_WhiteBalance,
-        SDK::CrDeviceProperty_ColorTuningAB,
-        SDK::CrDeviceProperty_ColorTuningGM,
-        SDK::CrDeviceProperty_IsoSensitivity,
-        SDK::CrDeviceProperty_AspectRatio,
-        SDK::CrDeviceProperty_FileType,
-        SDK::CrDeviceProperty_Colortemp,
-    };
-    for (auto& f : creativeLookFields()) codes.push_back(f.code);
-
-    SDK::CrDeviceProperty* props = nullptr;
-    CrInt32 numProps = 0;
-    SDK::CrError err = SDK::GetSelectDeviceProperties(g_deviceHandle, (CrInt32u)codes.size(), codes.data(), &props, &numProps);
-    if (err) {
-        char buf[96]; snprintf(buf, sizeof(buf), "{\"error\":\"read failed 0x%x\"}", err);
+    std::vector<std::pair<uint16_t, PtpIpPropertyValue>> props;
+    std::string error;
+    if (!g_client.ReadKnownProperties(&props, &error)) {
+        char buf[128]; snprintf(buf, sizeof(buf), "{\"error\":\"read failed: %s\"}", error.c_str());
         return buf;
     }
 
+    std::map<uint16_t, PtpIpPropertyValue> byCode;
+    for (auto& [code, pv] : props) byCode[code] = pv;
+
     std::ostringstream json;
     json << "{";
-    for (CrInt32 i = 0; i < numProps; i++) {
-        SDK::CrDeviceProperty& p = props[i];
-        CrInt32u code = p.GetCode();
-        if (i > 0) json << ",";
-        if (code == SDK::CrDeviceProperty_CreativeLook) {
-            json << "\"preset\":\"" << presetName(p.GetCurrentValue()) << "\"";
-        } else if (code == SDK::CrDeviceProperty_PictureProfile) {
-            json << "\"pictureProfileSlot\":\"" << pictureProfileSlotName(p.GetCurrentValue()) << "\"";
-        } else if (code == SDK::CrDeviceProperty_WhiteBalance) {
-            json << "\"whiteBalanceMode\":\"" << whiteBalanceModeName(p.GetCurrentValue()) << "\"";
-        } else if (code == SDK::CrDeviceProperty_ColorTuningAB) {
-            // Raw is CrDataType_UInt8Range, 0x9C(156,"B9")..0xE4(228,"A9"),
-            // center 192, 4 raw units per on-screen step -- confirmed
-            // empirically against the real camera (192=0, 220=A/G+7,
-            // 164=B/M-7) after WhiteBalanceTint/RGain/BGain turned out to
-            // not exist on this camera at all (see colorTuningToOnscreen).
-            json << "\"colorFilterAB\":" << colorTuningToOnscreen(p.GetCurrentValue());
-        } else if (code == SDK::CrDeviceProperty_ColorTuningGM) {
-            json << "\"colorFilterGM\":" << colorTuningToOnscreen(p.GetCurrentValue());
-        } else if (code == SDK::CrDeviceProperty_IsoSensitivity) {
-            CrInt64u raw = p.GetCurrentValue();
-            CrInt64u isoValue = raw & 0xFFFFFF;
-            if (isoValue == SDK::CrISO_AUTO) json << "\"iso\":\"Auto\"";
-            else json << "\"iso\":" << isoValue;
-        } else if (code == SDK::CrDeviceProperty_AspectRatio) {
-            json << "\"aspectRatio\":\"" << aspectRatioName(p.GetCurrentValue()) << "\"";
-        } else if (code == SDK::CrDeviceProperty_FileType) {
-            json << "\"fileType\":\"" << fileTypeName(p.GetCurrentValue()) << "\"";
-        } else if (code == SDK::CrDeviceProperty_Colortemp) {
-            json << "\"whiteBalanceColorTempK\":" << decodeSigned(p);
-        } else {
-            for (auto& f : creativeLookFields()) {
-                if (f.code == code) { json << "\"" << f.key << "\":" << decodeSigned(p); break; }
-            }
+    bool first = true;
+    auto comma = [&]() { if (!first) json << ","; first = false; };
+
+    if (byCode.count(kPropPreset) && byCode[kPropPreset].found) {
+        comma(); json << "\"preset\":\"" << presetName(byCode[kPropPreset].value) << "\"";
+    }
+    if (byCode.count(kPropWhiteBalance) && byCode[kPropWhiteBalance].found) {
+        comma(); json << "\"whiteBalanceMode\":\"" << whiteBalanceModeName(byCode[kPropWhiteBalance].value) << "\"";
+    }
+    if (byCode.count(kPropColorTuningAB) && byCode[kPropColorTuningAB].found) {
+        comma(); json << "\"colorFilterAB\":" << colorTuningToOnscreen(byCode[kPropColorTuningAB].value);
+    }
+    if (byCode.count(kPropColorTuningGM) && byCode[kPropColorTuningGM].found) {
+        comma(); json << "\"colorFilterGM\":" << colorTuningToOnscreen(byCode[kPropColorTuningGM].value);
+    }
+    if (byCode.count(kPropIso) && byCode[kPropIso].found) {
+        comma();
+        int64_t isoValue = byCode[kPropIso].value & 0xFFFFFF;
+        if (isoValue == 0xFFFFFF) json << "\"iso\":\"Auto\"";
+        else json << "\"iso\":" << isoValue;
+    }
+    if (byCode.count(kPropAspectRatio) && byCode[kPropAspectRatio].found) {
+        comma(); json << "\"aspectRatio\":\"" << aspectRatioName(byCode[kPropAspectRatio].value) << "\"";
+    }
+    if (byCode.count(kPropFileType) && byCode[kPropFileType].found) {
+        comma(); json << "\"fileType\":\"" << fileTypeName(byCode[kPropFileType].value) << "\"";
+    }
+    if (byCode.count(kPropColorTempK) && byCode[kPropColorTempK].found) {
+        comma(); json << "\"whiteBalanceColorTempK\":" << byCode[kPropColorTempK].value;
+    }
+    for (auto& f : creativeLookFields()) {
+        if (byCode.count(f.code) && byCode[f.code].found) {
+            comma(); json << "\"" << f.key << "\":" << byCode[f.code].value;
         }
     }
     json << "}";
-    SDK::ReleaseDeviceProperties(g_deviceHandle, props);
     return json.str();
 }
 
 std::string writeRecipeJson(const std::string& body) {
     std::lock_guard<std::mutex> lock(g_cameraMutex);
     if (!g_connected) return "not connected";
+    std::string error;
 
     std::string presetStr;
     if (jsonFindString(body, "preset", presetStr)) {
-        SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_CreativeLook);
-        prop.SetValueType(SDK::CrDataType_UInt16);
-        prop.SetCurrentValue(presetRaw(presetStr));
-        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set preset 0x%x", err); return buf; }
+        if (!g_client.WriteProperty(kPropPreset, 2, presetRaw(presetStr), &error)) {
+            return "failed to set preset: " + error;
+        }
         // The camera needs a brief moment to finish switching Creative Look
         // presets before its sub-parameters (contrast, saturation, etc.)
-        // become settable again -- setting them immediately after can fail
-        // with CrError_Api_InvalidCalled (0x8402).
+        // become settable again.
         std::this_thread::sleep_for(std::chrono::milliseconds(400));
     }
 
@@ -840,120 +549,76 @@ std::string writeRecipeJson(const std::string& body) {
         double value;
         if (!jsonFindNumber(body, f.key, value)) continue;
         int clamped = std::max(f.minValue, std::min(f.maxValue, (int)std::lround(value)));
-        SDK::CrDeviceProperty prop;
-        prop.SetCode(f.code);
-        prop.SetValueType(f.setType);
-        prop.SetCurrentValue((CrInt64u)(int64_t)clamped);
-        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set %s 0x%x", f.key.c_str(), err); return buf; }
+        uint64_t wire = f.signedValue ? (uint64_t)(uint8_t)(int8_t)clamped : (uint64_t)clamped;
+        if (!g_client.WriteProperty(f.code, f.width, wire, &error)) {
+            return "failed to set " + f.key + ": " + error;
+        }
     }
 
     std::string wbModeStr;
+    bool wroteWbMode = false;
     if (jsonFindString(body, "whiteBalanceMode", wbModeStr)) {
-        SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_WhiteBalance);
-        prop.SetValueType(SDK::CrDataType_UInt16);
-        prop.SetCurrentValue(whiteBalanceModeRaw(wbModeStr));
-        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set white balance mode 0x%x", err); return buf; }
-        // Same settle requirement as the preset switch above -- WhiteBalancePresetColorTemperature
-        // (and other WB sub-params) aren't reliably settable immediately after switching modes.
-        // Switching INTO ColorTemp mode specifically seems to need longer than other WB mode
-        // changes (staying within Daylight/Shade/etc settles faster).
-        std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+        if (!g_client.WriteProperty(kPropWhiteBalance, 2, whiteBalanceModeRaw(wbModeStr), &error)) {
+            return "failed to set white balance mode: " + error;
+        }
+        wroteWbMode = true;
     }
 
-    // CrDeviceProperty_WhiteBalancePresetColorTemperature (tried originally,
-    // by name) turns out not to exist on this camera at all -- confirmed
-    // absent from the full GetDeviceProperties() dump, same dead-property
-    // pattern as WhiteBalanceTint/RGain/BGain. CrDeviceProperty_Colortemp
-    // is the real, live one (get/set-enabled, tracks the camera's actual
-    // Kelvin value).
     double colorTempK;
-    if (jsonFindNumber(body, "whiteBalanceColorTempK", colorTempK)) {
-        SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_Colortemp);
-        prop.SetValueType(SDK::CrDataType_UInt16);
-        prop.SetCurrentValue((CrInt64u)(int64_t)colorTempK);
-        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) fprintf(stderr, "[writeRecipeJson] color temp not applied (0x%x)\n", err);
+    bool haveColorTempK = jsonFindNumber(body, "whiteBalanceColorTempK", colorTempK);
+    if (haveColorTempK) {
+        // Same settle requirement as the preset switch above -- Colortemp
+        // isn't reliably settable immediately after switching WB modes, and
+        // switching INTO ColorTemp mode specifically needs longer than other
+        // WB mode changes.
+        std::this_thread::sleep_for(std::chrono::milliseconds(wroteWbMode ? 1200 : 0));
+        if (!g_client.WriteProperty(kPropColorTempK, 2, (uint64_t)(int64_t)colorTempK, &error)) {
+            fprintf(stderr, "[writeRecipeJson] color temp not applied: %s\n", error.c_str());
+        }
     }
 
-    // Color Filter fine-tune (A-B / G-M axes) -- CrDeviceProperty_ColorTuningAB
-    // and _ColorTuningGM, confirmed via GetDeviceProperties() to actually
-    // exist and be get/set-enabled on this camera, unlike WhiteBalanceTint/
-    // RGain/BGain (which are absent from the camera's full property list
-    // entirely -- confirmed by dumping and inspecting all 431 properties,
-    // not just assumed). Calibration (192=neutral, 4 raw units/step,
-    // positive=A/G, negative=B/M) confirmed empirically against the real
-    // camera screen. Both are CrDataType_UInt8Range -- the earlier dead
-    // properties were being set with a plain (non-Range) type, which may
-    // also have contributed to those writes silently no-oping.
     double colorFilterAB;
     if (jsonFindNumber(body, "colorFilterAB", colorFilterAB)) {
-        SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_ColorTuningAB);
-        prop.SetValueType(SDK::CrDataType_UInt8Range);
-        prop.SetCurrentValue(colorTuningFromOnscreen((int)std::lround(colorFilterAB)));
-        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set Color Filter A-B 0x%x", err); return buf; }
+        if (!g_client.WriteProperty(kPropColorTuningAB, 1, colorTuningFromOnscreen((int)std::lround(colorFilterAB)), &error)) {
+            return "failed to set Color Filter A-B: " + error;
+        }
     }
-
     double colorFilterGM;
     if (jsonFindNumber(body, "colorFilterGM", colorFilterGM)) {
-        SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_ColorTuningGM);
-        prop.SetValueType(SDK::CrDataType_UInt8Range);
-        prop.SetCurrentValue(colorTuningFromOnscreen((int)std::lround(colorFilterGM)));
-        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set Color Filter G-M 0x%x", err); return buf; }
+        if (!g_client.WriteProperty(kPropColorTuningGM, 1, colorTuningFromOnscreen((int)std::lround(colorFilterGM)), &error)) {
+            return "failed to set Color Filter G-M: " + error;
+        }
     }
 
     std::string isoStr;
     double isoValue;
     bool haveIso = false;
-    CrInt64u isoRawValue = 0;
+    uint64_t isoRawValue = 0;
     if (jsonFindString(body, "iso", isoStr) && isoStr == "Auto") {
-        isoRawValue = SDK::CrISO_AUTO;
+        isoRawValue = 0xFFFFFF;
         haveIso = true;
     } else if (jsonFindNumber(body, "iso", isoValue)) {
-        isoRawValue = (CrInt64u)(int64_t)isoValue & 0xFFFFFF;
+        isoRawValue = (uint64_t)(int64_t)isoValue & 0xFFFFFF;
         haveIso = true;
     }
     if (haveIso) {
-        SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_IsoSensitivity);
-        prop.SetValueType(SDK::CrDataType_UInt32);
-        CrInt64u raw = ((CrInt64u)SDK::CrISO_Normal << 24) | isoRawValue;
-        prop.SetCurrentValue(raw);
-        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set ISO 0x%x", err); return buf; }
+        if (!g_client.WriteProperty(kPropIso, 4, isoRawValue, &error)) {
+            return "failed to set ISO: " + error;
+        }
     }
 
     std::string aspectRatioStr;
     if (jsonFindString(body, "aspectRatio", aspectRatioStr)) {
-        SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_AspectRatio);
-        prop.SetValueType(SDK::CrDataType_UInt16);
-        prop.SetCurrentValue(aspectRatioRaw(aspectRatioStr));
-        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set Aspect Ratio 0x%x", err); return buf; }
+        if (!g_client.WriteProperty(kPropAspectRatio, 1, aspectRatioRaw(aspectRatioStr), &error)) {
+            return "failed to set Aspect Ratio: " + error;
+        }
     }
 
-    // Confirmed working live against the real camera for all three values
-    // (RAW/JPEG/RAW+JPEG), each round-tripped by hand: set here, then
-    // verified via /api/debug/allprops that the camera's own raw value
-    // actually changed (1/2/3 respectively). CrDataType_UInt8, not UInt16 --
-    // UInt16 silently no-oped despite CrFileType's underlying type being
-    // CrInt16u.
     std::string fileTypeStr;
     if (jsonFindString(body, "fileType", fileTypeStr)) {
-        SDK::CrDeviceProperty prop;
-        prop.SetCode(SDK::CrDeviceProperty_FileType);
-        prop.SetValueType(SDK::CrDataType_UInt8);
-        prop.SetCurrentValue(fileTypeRaw(fileTypeStr));
-        SDK::CrError err = SDK::SetDeviceProperty(g_deviceHandle, &prop);
-        if (err) { char buf[64]; snprintf(buf, sizeof(buf), "failed to set File Type 0x%x", err); return buf; }
+        if (!g_client.WriteProperty(kPropFileType, 1, fileTypeRaw(fileTypeStr), &error)) {
+            return "failed to set File Type: " + error;
+        }
     }
 
     return "";
@@ -961,9 +626,9 @@ std::string writeRecipeJson(const std::string& body) {
 
 // ---------------------------------------------------------------------
 // Network camera search -- looks up a camera's IP by MAC address on the
-// Pi's own CameraBrdg access point, so the user doesn't have to hunt for
-// it manually (previously the only way was cat'ing the dnsmasq lease
-// file over SSH, per docs/CAMERA_SETUP.md).
+// Pi's own CameraBrdg access point. Not applicable on the Docker/NAS
+// deployment (no dnsmasq/ARP-relevant local AP there), kept for parity
+// with the Pi build.
 // ---------------------------------------------------------------------
 
 std::string normalizeMac(std::string mac) {
@@ -972,9 +637,6 @@ std::string normalizeMac(std::string mac) {
 }
 
 std::string findIpByMac(const std::string& macNorm) {
-    // Primary source: the AP's own DHCP lease file -- authoritative for
-    // any camera that got its address via DHCP (the normal case). Needs
-    // sudo to read; cbrant has passwordless sudo on the Pi already.
     FILE* pipe = popen("sudo cat /var/lib/NetworkManager/dnsmasq-wlan0.leases 2>/dev/null", "r");
     if (pipe) {
         char line[512];
@@ -986,10 +648,6 @@ std::string findIpByMac(const std::string& macNorm) {
         }
         pclose(pipe);
     }
-
-    // Fallback: the kernel's own ARP table -- catches a camera configured
-    // with a static IP (never requested a DHCP lease) as long as the Pi
-    // has exchanged at least one packet with it recently.
     std::ifstream arp("/proc/net/arp");
     std::string line;
     std::getline(arp, line); // header row
@@ -1002,75 +660,104 @@ std::string findIpByMac(const std::string& macNorm) {
     return "";
 }
 
+// Reverse of findIpByMac() -- what MAC is ip currently resolving to. Used
+// by the ping test to confirm the thing that answered is actually the
+// saved camera, not some other device that picked up its IP over DHCP.
+// Reads the kernel's own ARP cache, so it only has an entry once the ip
+// has actually been talked to (e.g. right after pingHost() below) --
+// and only when this process shares an L2/ARP-relevant network with the
+// camera, which host networking (the Pi/NAS deployment) gives it but a
+// container on a NATed bridge network (e.g. local Docker Desktop dev)
+// does not; empty return means "unknown", not "no such device".
+std::string findMacByIp(const std::string& ip) {
+    std::ifstream arp("/proc/net/arp");
+    std::string line;
+    std::getline(arp, line); // header row
+    while (std::getline(arp, line)) {
+        std::istringstream iss(line);
+        std::string rowIp, hwType, flags, mac;
+        iss >> rowIp >> hwType >> flags >> mac;
+        if (rowIp == ip && mac != "00:00:00:00:00:00") return mac;
+    }
+    return "";
+}
+
+// Strict dotted-quad check -- the ip string is interpolated straight into
+// a shell command below, so this is the injection guard, not just input
+// validation. Reject anything that isn't 4 numeric octets.
+bool isValidIpv4(const std::string& ip) {
+    int octets = 0, digitsInOctet = 0;
+    for (char c : ip) {
+        if (c == '.') {
+            if (digitsInOctet == 0) return false;
+            octets++; digitsInOctet = 0;
+        } else if (isdigit((unsigned char)c)) {
+            if (++digitsInOctet > 3) return false;
+        } else {
+            return false;
+        }
+    }
+    return octets == 3 && digitsInOctet > 0;
+}
+
+// Runs `ping -c 4` against ip and returns its combined stdout/stderr, for
+// the Setup tab's "(Ping Test)" buttons -- a quick reachability check
+// before trying a full PTP/IP connect. ip must already be validated by
+// isValidIpv4() before this is called.
+std::string pingHost(const std::string& ip) {
+    std::string cmd = "ping -c 4 -W 2 " + ip + " 2>&1";
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) return "failed to start ping";
+    std::string output;
+    char buf[256];
+    while (fgets(buf, sizeof(buf), pipe)) output += buf;
+    pclose(pipe);
+    return output;
+}
+
 // ---------------------------------------------------------------------
 // HTTP server
 // ---------------------------------------------------------------------
 
 int main() {
-    ensureSdkInit(); // must happen on the main thread before any request threads spin up
-
     httplib::Server svr;
 
     svr.set_mount_point("/", "./public");
 
     svr.Get("/api/status", [](const httplib::Request&, httplib::Response& res) {
         std::lock_guard<std::mutex> lock(g_cameraMutex);
+        // CAMERALINK_PLATFORM=pi is set only by scripts/cameralink.service --
+        // Docker/NAS deployments never set it, so they default to "docker".
+        // The Setup tab uses this to hide "Shut Down Pi", which is
+        // meaningless (and would shut down the NAS/Mac host, not a Pi) when
+        // running in a container.
+        const char* platformEnv = std::getenv("CAMERALINK_PLATFORM");
+        std::string platform = platformEnv ? platformEnv : "docker";
         std::ostringstream json;
         json << "{\"connected\":" << (g_connected ? "true" : "false")
-             << ",\"model\":\"" << jsonEscape(g_modelName) << "\"}";
+             << ",\"model\":\"" << jsonEscape(g_modelName) << "\""
+             << ",\"platform\":\"" << jsonEscape(platform) << "\"}";
         res.set_content(json.str(), "application/json");
     });
 
+    // Model/serial/firmware come from the standard PTP GetDeviceInfo call
+    // (no property-table lookup needed). Lens and battery/media info are
+    // NOT part of the known-property set this branch decoded -- omitted
+    // rather than guessed. See protocol notes for what's confirmed.
     svr.Get("/api/camera-info", [](const httplib::Request&, httplib::Response& res) {
         std::lock_guard<std::mutex> lock(g_cameraMutex);
         if (!g_connected) { res.set_content("{\"error\":\"not connected\"}", "application/json"); return; }
-        std::vector<CrInt32u> codes = {
-            SDK::CrDeviceProperty_ModelName,
-            SDK::CrDeviceProperty_BodySerialNumber,
-            SDK::CrDeviceProperty_SoftwareVersion,
-            SDK::CrDeviceProperty_LensModelName,
-            SDK::CrDeviceProperty_LensVersionNumber,
-            SDK::CrDeviceProperty_BatteryLevel,
-            SDK::CrDeviceProperty_BatteryRemain,
-            SDK::CrDeviceProperty_MediaSLOT1_RemainingNumber,
-            SDK::CrDeviceProperty_MediaSLOT2_RemainingNumber,
-        };
-        SDK::CrDeviceProperty* props = nullptr;
-        CrInt32 numProps = 0;
-        SDK::CrError err = SDK::GetSelectDeviceProperties(g_deviceHandle, (CrInt32u)codes.size(), codes.data(), &props, &numProps);
-        if (err) {
-            char buf[96]; snprintf(buf, sizeof(buf), "{\"error\":\"read failed 0x%x\"}", err);
+        PtpIpDeviceInfo info;
+        std::string error;
+        if (!g_client.GetDeviceInfo(&info, &error)) {
+            char buf[160]; snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", error.c_str());
             res.set_content(buf, "application/json");
             return;
         }
         std::ostringstream json;
-        json << "{";
-        for (CrInt32 i = 0; i < numProps; i++) {
-            SDK::CrDeviceProperty& p = props[i];
-            CrInt32u code = p.GetCode();
-            if (i > 0) json << ",";
-            if (code == SDK::CrDeviceProperty_ModelName) {
-                json << "\"modelName\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
-            } else if (code == SDK::CrDeviceProperty_BodySerialNumber) {
-                json << "\"bodySerialNumber\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
-            } else if (code == SDK::CrDeviceProperty_SoftwareVersion) {
-                json << "\"softwareVersion\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
-            } else if (code == SDK::CrDeviceProperty_LensModelName) {
-                json << "\"lensModelName\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
-            } else if (code == SDK::CrDeviceProperty_LensVersionNumber) {
-                json << "\"lensVersionNumber\":\"" << jsonEscape(decodeCrStr(p)) << "\"";
-            } else if (code == SDK::CrDeviceProperty_BatteryLevel) {
-                json << "\"batteryLevel\":\"" << batteryLevelName(p.GetCurrentValue()) << "\"";
-            } else if (code == SDK::CrDeviceProperty_BatteryRemain) {
-                json << "\"batteryRemain\":" << decodeSigned(p);
-            } else if (code == SDK::CrDeviceProperty_MediaSLOT1_RemainingNumber) {
-                json << "\"mediaSlot1Remaining\":" << decodeSigned(p);
-            } else if (code == SDK::CrDeviceProperty_MediaSLOT2_RemainingNumber) {
-                json << "\"mediaSlot2Remaining\":" << decodeSigned(p);
-            }
-        }
-        json << "}";
-        SDK::ReleaseDeviceProperties(g_deviceHandle, props);
+        json << "{\"modelName\":\"" << jsonEscape(info.model) << "\""
+             << ",\"bodySerialNumber\":\"" << jsonEscape(info.serialNumber) << "\""
+             << ",\"softwareVersion\":\"" << jsonEscape(info.version) << "\"}";
         res.set_content(json.str(), "application/json");
     });
 
@@ -1083,42 +770,65 @@ int main() {
         res.set_content(json.str(), "application/json");
     });
 
-    // Dumps the camera's FULL, unrestricted property list (not our own
-    // hardcoded GetSelectDeviceProperties subset) -- how ColorTuningAB/GM
-    // were originally found and confirmed real, after WhiteBalanceTint/
-    // RGain/BGain turned out to not exist on this camera at all. Kept
-    // around as a standing diagnostic tool, not just a one-off.
+    // expectedMac (optional) is the saved camera's MAC -- after pinging,
+    // the kernel's ARP cache should have a fresh entry for ip (assuming
+    // this process shares an L2/ARP-relevant network with it, i.e. host
+    // networking; see findMacByIp()), which we compare against it so the
+    // Setup tab can say whether what answered is actually the camera or
+    // just whatever device currently holds that IP.
+    svr.Get("/api/network/ping", [](const httplib::Request& req, httplib::Response& res) {
+        std::string ip = req.get_param_value("ip");
+        if (!isValidIpv4(ip)) {
+            res.set_content("{\"success\":false,\"output\":\"invalid IP address\"}", "application/json");
+            return;
+        }
+        std::string expectedMac = normalizeMac(req.get_param_value("mac"));
+        std::string output = pingHost(ip);
+        bool success = output.find(" 0% packet loss") != std::string::npos;
+        std::string arpMac = success ? findMacByIp(ip) : "";
+        std::ostringstream json;
+        json << "{\"success\":" << (success ? "true" : "false")
+             << ",\"output\":\"" << jsonEscape(output) << "\""
+             << ",\"arpMac\":\"" << jsonEscape(arpMac) << "\"";
+        if (!expectedMac.empty() && !arpMac.empty()) {
+            json << ",\"macMatch\":" << (normalizeMac(arpMac) == expectedMac ? "true" : "false");
+        } else {
+            json << ",\"macMatch\":null";
+        }
+        json << "}";
+        res.set_content(json.str(), "application/json");
+    });
+
+    // Scoped-down replacement for the CrSDK build's /api/debug/allprops --
+    // that endpoint dumped the camera's full ~430-property list with
+    // human-readable names via CrDevicePropertyString(), which needs
+    // CrSDK. This just reports the properties this branch actually knows
+    // about (see kKnownProperties in ptpip_client.cpp).
     svr.Get("/api/debug/allprops", [](const httplib::Request&, httplib::Response& res) {
         std::lock_guard<std::mutex> lock(g_cameraMutex);
         if (!g_connected) { res.set_content("{\"error\":\"not connected\"}", "application/json"); return; }
-        SDK::CrDeviceProperty* props = nullptr;
-        CrInt32 numProps = 0;
-        SDK::CrError err = SDK::GetDeviceProperties(g_deviceHandle, &props, &numProps);
-        if (err) {
-            char buf[64]; snprintf(buf, sizeof(buf), "{\"error\":\"0x%x\"}", err);
+        std::vector<std::pair<uint16_t, PtpIpPropertyValue>> props;
+        std::string error;
+        if (!g_client.ReadKnownProperties(&props, &error)) {
+            char buf[128]; snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", error.c_str());
             res.set_content(buf, "application/json");
             return;
         }
         std::ostringstream json;
-        json << "{\"totalProps\":" << numProps << ",\"props\":[";
-        for (CrInt32 i = 0; i < numProps; i++) {
+        json << "{\"totalProps\":" << props.size() << ",\"props\":[";
+        for (size_t i = 0; i < props.size(); i++) {
             if (i > 0) json << ",";
-            CrInt32u code = props[i].GetCode();
-            std::string name = CrDevicePropertyString((SDK::CrDevicePropertyCode)code);
-            json << "{\"code\":\"0x" << std::hex << code << std::dec << "\""
-                 << ",\"name\":\"" << jsonEscape(name) << "\""
-                 << ",\"getEnable\":" << props[i].IsGetEnableCurrentValue()
-                 << ",\"setEnable\":" << props[i].IsSetEnableCurrentValue()
-                 << ",\"value\":" << decodeSigned(props[i]) << "}";
+            auto& [code, pv] = props[i];
+            char codeBuf[16]; snprintf(codeBuf, sizeof(codeBuf), "0x%x", code);
+            json << "{\"code\":\"" << codeBuf << "\""
+                 << ",\"getEnable\":" << (pv.getEnable ? 1 : 0)
+                 << ",\"setEnable\":" << (pv.setEnable ? 1 : 0)
+                 << ",\"value\":" << pv.value << "}";
         }
         json << "]}";
-        SDK::ReleaseDeviceProperties(g_deviceHandle, props);
         res.set_content(json.str(), "application/json");
     });
 
-    // Saved camera profiles (name/ip/mac/userId/password) for one-tap
-    // connect buttons -- lives in saved_cameras.json, gitignored, never
-    // committed. Missing file just means no saved cameras, not an error.
     svr.Get("/api/network/saved", [](const httplib::Request&, httplib::Response& res) {
         std::ifstream f("saved_cameras.json");
         if (!f) { res.set_content("[]", "application/json"); return; }
@@ -1127,10 +837,6 @@ int main() {
         res.set_content(ss.str(), "application/json");
     });
 
-    // Saves (or updates, matched by name) one camera profile into
-    // saved_cameras.json from the Setup tab's manual Connect (Network)
-    // form -- lets the user create a one-tap Quick Connect for any
-    // camera, not just a hardcoded one.
     svr.Post("/api/network/save", [](const httplib::Request& req, httplib::Response& res) {
         std::string name, ip, mac, userId, password;
         jsonFindString(req.body, "name", name);
@@ -1165,9 +871,6 @@ int main() {
         res.set_content("{\"success\":true}", "application/json");
     });
 
-    // Saved Recipes CRUD -- 10 user-managed slots, see the comment above
-    // parseSavedCameras/jsonFindRawObject for why recipe payloads are
-    // stored opaquely rather than parsed field-by-field.
     svr.Get("/api/recipes/saved", [](const httplib::Request&, httplib::Response& res) {
         res.set_content(readJsonArrayFile("saved_recipes.json"), "application/json");
     });
@@ -1266,12 +969,12 @@ int main() {
         res.set_content("{\"success\":true}", "application/json");
     });
 
+    // USB is not supported by this branch -- the native client only
+    // speaks PTP/IP-over-SSH, which requires a network connection. USB
+    // gadget mode (the Pi field kit) isn't used by the NAS/Docker
+    // deployment this branch targets.
     svr.Post("/api/connect/usb", [](const httplib::Request&, httplib::Response& res) {
-        std::string error = connectUsb();
-        std::ostringstream json;
-        json << "{\"success\":" << (error.empty() ? "true" : "false")
-             << ",\"error\":\"" << jsonEscape(error) << "\"}";
-        res.set_content(json.str(), "application/json");
+        res.set_content("{\"success\":false,\"error\":\"USB connect is not supported in this SDK-free build\"}", "application/json");
     });
 
     svr.Post("/api/connect/network", [](const httplib::Request& req, httplib::Response& res) {
@@ -1293,11 +996,7 @@ int main() {
 
     svr.Post("/api/disconnect", [](const httplib::Request&, httplib::Response& res) {
         std::lock_guard<std::mutex> lock(g_cameraMutex);
-        if (g_deviceHandle) {
-            SDK::Disconnect(g_deviceHandle);
-            SDK::ReleaseDevice(g_deviceHandle);
-            g_deviceHandle = 0;
-        }
+        g_client.Disconnect();
         g_connected = false;
         res.set_content("{\"success\":true}", "application/json");
     });
@@ -1314,18 +1013,25 @@ int main() {
         res.set_content(json.str(), "application/json");
     });
 
+    // Refuses unless CAMERALINK_PLATFORM=pi (see /api/status above) -- this
+    // runs `sudo shutdown -h now` on whatever host the process is on, which
+    // on a Docker/NAS deployment would be the NAS or Mac host itself, not
+    // a Pi. The Setup tab already hides the button off-Pi; this is the
+    // server-side backstop for a stray/manual request.
     svr.Post("/api/system/shutdown", [](const httplib::Request&, httplib::Response& res) {
+        const char* platformEnv = std::getenv("CAMERALINK_PLATFORM");
+        if (!platformEnv || std::string(platformEnv) != "pi") {
+            res.set_content("{\"success\":false,\"error\":\"shutdown is only available on the Pi build\"}", "application/json");
+            return;
+        }
         res.set_content("{\"success\":true}", "application/json");
-        // Give httplib a moment to actually flush this response to the
-        // client before the OS starts going down -- shutdown -h now takes
-        // a few seconds anyway, but detaching means we don't race it.
         std::thread([]() {
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
             system("sudo shutdown -h now");
         }).detach();
     });
 
-    std::cout << "SonyConfig web app listening on http://0.0.0.0:8080\n";
+    std::cout << "SonyConfig web app (SDK-free / native PTP/IP) listening on http://0.0.0.0:8080\n";
     svr.listen("0.0.0.0", 8080);
     return 0;
 }

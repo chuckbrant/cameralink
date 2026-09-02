@@ -5,33 +5,34 @@ enum AppTab: Hashable {
     case custom, filmRecipes, savedRecipes, setup
 }
 
+enum ConnectionKind: String, Codable {
+    case wifi, cameraHostedAP
+}
+
 @Observable
 @MainActor
 final class AppState {
-    // MARK: - Server connection (Sony Config <-> the cameralink Pi)
+    // MARK: - Camera connection (this iPad <-> the Sony camera, directly --
+    // no server/Pi in the loop)
 
-    var serverURLString: String {
-        didSet {
-            UserDefaults.standard.set(serverURLString, forKey: "serverURLString")
-            rebuildClient()
+    private(set) var camera: RecipeCameraClient?
+    private(set) var connectionKind: ConnectionKind?
+    var connectionKindLabel: String {
+        switch connectionKind {
+        case .wifi: return "Wi-Fi"
+        case .cameraHostedAP: return "Camera Wi-Fi"
+        case nil: return "—"
         }
     }
-    private(set) var api: APIClient
 
-    // MARK: - Two independent links that both have to be up:
-    // 1) this iPad <-> the Pi's web server (over USB gadget or Wi-Fi)
-    // 2) the Pi <-> the Sony camera (always over Wi-Fi/CameraBrdg)
-    // A dead server link and a dead camera link look identical from the
-    // Custom/Film Recipes/Saved Recipes tabs (every request just fails) --
-    // Setup shows them separately so it's obvious which one to fix.
-
-    /// nil = not checked yet. Sette by any successful/failed call to
-    /// refreshStatus() -- reflects whether *this device* can reach the Pi's
-    /// server at all right now, independent of whether a camera is paired.
-    var serverReachable: Bool?
+    // The camera self-assigns this IP as the gateway of its own hosted
+    // Wi-Fi access point (the same mode used for phone pairing) --
+    // confirmed 2026-08-29 against the real a7R V. No SSH, no userId/
+    // password needed for this path: the Wi-Fi password is the only gate.
+    static let cameraHostedAPIP = "192.168.122.1"
     var connected = false
     var cameraModel = ""
-    var cameraInfo: CameraInfo?
+    var cameraInfo: CameraDeviceInfo?
 
     // MARK: - Navigation
 
@@ -58,22 +59,6 @@ final class AppState {
     var statusMessage: String?
     var isBusy = false
 
-    init() {
-        let saved = UserDefaults.standard.string(forKey: "serverURLString")
-        // Default matches the address this whole project was developed and
-        // tested against all session: the Pi's own Wi-Fi access point.
-        // Reachable from the simulator via USB gadget mode or Wi-Fi, same
-        // as any other client on the Mac's network.
-        let initial = saved ?? "http://10.42.0.1:8080"
-        self.serverURLString = initial
-        self.api = APIClient(baseURL: URL(string: initial) ?? URL(string: "http://10.42.0.1:8080")!)
-    }
-
-    private func rebuildClient() {
-        guard let url = URL(string: serverURLString) else { return }
-        api = APIClient(baseURL: url)
-    }
-
     private func report(_ error: Error) {
         lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
     }
@@ -86,36 +71,85 @@ final class AppState {
         statusMessage = message
     }
 
-    // MARK: - Status / camera info
+    // MARK: - Connect (Wi-Fi)
 
-    func refreshStatus() async {
+    @discardableResult
+    func connectWifi(ip: String, userId: String, password: String) async -> Bool {
+        isBusy = true
+        defer { isBusy = false }
+        let client = RecipeCameraClient(transport: WifiTransport(ip: ip, userId: userId, password: password))
         do {
-            let status = try await api.status()
-            serverReachable = true
-            connected = status.connected
-            cameraModel = status.model
+            try await client.connect()
+            camera = client
+            connectionKind = .wifi
+            connected = true
+            await loadCameraInfo()
+            if let recipe = await fetchRecipeFromCamera() { workingRecipe = recipe }
+            announce("Connected to \(cameraModel.isEmpty ? "camera" : cameraModel)")
+            return true
         } catch {
-            // A failure here is ambiguous by itself -- it could mean this
-            // device can't reach the Pi at all (wrong serverURLString, USB
-            // gadget not up, Wi-Fi not joined), or the Pi is up but just
-            // hasn't got a camera connected. Since GET /api/status only
-            // fails on a real network/transport error (a reachable server
-            // always returns 200 with connected:false), treat any failure
-            // here as "server unreachable" -- the camera fields become
-            // meaningless once we don't even know if the Pi answered.
-            serverReachable = false
             connected = false
-            cameraModel = ""
             report(error)
+            return false
         }
     }
 
-    func loadCameraInfo() async {
+    // MARK: - Connect (camera-hosted Wi-Fi AP -- no SSH, no credentials)
+
+    @discardableResult
+    func connectCameraHostedAP() async -> Bool {
+        isBusy = true
+        defer { isBusy = false }
+        let client = RecipeCameraClient(transport: DirectWifiTransport(ip: Self.cameraHostedAPIP))
         do {
-            let info = try await api.cameraInfo()
-            cameraInfo = info.error == nil ? info : nil
+            try await client.connect()
+            camera = client
+            connectionKind = .cameraHostedAP
+            connected = true
+            await loadCameraInfo()
+            if let recipe = await fetchRecipeFromCamera() { workingRecipe = recipe }
+            announce("Connected to \(cameraModel.isEmpty ? "camera" : cameraModel)")
+            return true
+        } catch {
+            connected = false
+            report(error)
+            return false
+        }
+    }
+
+    func disconnect() {
+        camera?.disconnect()
+        camera = nil
+        connectionKind = nil
+        connected = false
+        cameraModel = ""
+        cameraInfo = nil
+        announce("Disconnected")
+    }
+
+    /// Re-checks the live connection by pinging the camera -- there's no
+    /// separate "server" to be reachable or not anymore, just this one
+    /// link, so a failure here means the camera link itself is down.
+    func refreshStatus() async {
+        guard let camera else { connected = false; return }
+        if !camera.isConnected {
+            connected = false
+            cameraModel = ""
+            return
+        }
+        await loadCameraInfo()
+    }
+
+    func loadCameraInfo() async {
+        guard let camera else { cameraInfo = nil; return }
+        do {
+            let info = try await camera.deviceInfo()
+            cameraInfo = info
+            cameraModel = info.model
+            connected = true
         } catch {
             cameraInfo = nil
+            connected = false
             report(error)
         }
     }
@@ -128,10 +162,9 @@ final class AppState {
     /// for what the user actually just did.
     @discardableResult
     private func fetchRecipeFromCamera() async -> Recipe? {
+        guard let camera else { return nil }
         do {
-            let recipe = try await api.recipe()
-            if let err = recipe.error { report(err); return nil }
-            return recipe
+            return try await camera.readRecipe()
         } catch {
             report(error)
             return nil
@@ -148,11 +181,11 @@ final class AppState {
 
     @discardableResult
     func pushWorkingRecipeToCamera() async -> Bool {
+        guard let camera else { report("Not connected"); return false }
         do {
-            let result = try await api.pushRecipe(workingRecipe)
-            if result.success { announce("Saved to camera") }
-            else { report(result.error ?? "Save failed") }
-            return result.success
+            try await camera.writeRecipe(workingRecipe)
+            announce("Saved to camera")
+            return true
         } catch {
             report(error)
             return false
@@ -161,15 +194,12 @@ final class AppState {
 
     @discardableResult
     func pushPresetToCamera(_ preset: FilmPreset) async -> Bool {
+        guard let camera else { report("Not connected"); return false }
         do {
-            let result = try await api.pushRecipe(preset.asRecipe)
-            if result.success {
-                if let recipe = await fetchRecipeFromCamera() { workingRecipe = recipe }
-                announce("\"\(preset.name)\" sent to camera")
-            } else {
-                report(result.error ?? "Push failed")
-            }
-            return result.success
+            try await camera.writeRecipe(preset.asRecipe)
+            if let recipe = await fetchRecipeFromCamera() { workingRecipe = recipe }
+            announce("\"\(preset.name)\" sent to camera")
+            return true
         } catch {
             report(error)
             return false
@@ -179,7 +209,7 @@ final class AppState {
     // MARK: - Presets
 
     func loadPresets() async {
-        do { presets = try await api.presets() } catch { report(error) }
+        presets = LocalStore.loadPresets()
     }
 
     var presetsByGroup: [(group: String, items: [FilmPreset])] {
@@ -195,28 +225,27 @@ final class AppState {
     // MARK: - Saved Recipes (10-slot CRUD library)
 
     func loadSavedRecipes() async {
-        do { savedRecipes = try await api.savedRecipes() } catch { report(error) }
+        savedRecipes = LocalStore.loadSavedRecipes()
     }
 
     func savedRecipe(forSlot slot: Int) -> SavedRecipeEntry? {
         savedRecipes.first { $0.slot == slot }
     }
 
+    private func nextFreeSlot() -> Int {
+        let used = Set(savedRecipes.map { $0.slot })
+        for slot in 0..<10 where !used.contains(slot) { return slot }
+        return 0
+    }
+
     @discardableResult
     func saveWorkingRecipeAsNew(name: String) async -> Bool {
-        do {
-            let result = try await api.saveRecipe(name: name, recipe: workingRecipe)
-            if result.success {
-                await loadSavedRecipes()
-                announce("Saved \"\(name)\" to slot \((result.slot ?? 0) + 1)")
-            } else {
-                report(result.error ?? "Save failed")
-            }
-            return result.success
-        } catch {
-            report(error)
-            return false
-        }
+        let slot = nextFreeSlot()
+        savedRecipes.removeAll { $0.slot == slot }
+        savedRecipes.append(SavedRecipeEntry(slot: slot, name: name, recipe: workingRecipe))
+        LocalStore.saveSavedRecipes(savedRecipes)
+        announce("Saved \"\(name)\" to slot \(slot + 1)")
+        return true
     }
 
     func editSlotInCustomTab(_ entry: SavedRecipeEntry) {
@@ -234,30 +263,22 @@ final class AppState {
     func updateEditingSlot() async -> Bool {
         guard let slot = editingRecipeSlot else { return false }
         let name = savedRecipe(forSlot: slot)?.name ?? "Slot \(slot + 1)"
-        do {
-            let result = try await api.saveRecipe(name: name, recipe: workingRecipe, slot: slot)
-            if result.success {
-                await loadSavedRecipes()
-                editingRecipeSlot = nil
-                selectedTab = .savedRecipes
-                announce("Updated slot \(slot + 1)")
-            } else {
-                report(result.error ?? "Update failed")
-            }
-            return result.success
-        } catch {
-            report(error)
-            return false
-        }
+        savedRecipes.removeAll { $0.slot == slot }
+        savedRecipes.append(SavedRecipeEntry(slot: slot, name: name, recipe: workingRecipe))
+        LocalStore.saveSavedRecipes(savedRecipes)
+        editingRecipeSlot = nil
+        selectedTab = .savedRecipes
+        announce("Updated slot \(slot + 1)")
+        return true
     }
 
     @discardableResult
     func loadSlotToCamera(_ entry: SavedRecipeEntry) async -> Bool {
+        guard let camera else { report("Not connected"); return false }
         do {
-            let result = try await api.pushRecipe(entry.recipe)
-            if result.success { announce("\"\(entry.name)\" sent to camera") }
-            else { report(result.error ?? "Push failed") }
-            return result.success
+            try await camera.writeRecipe(entry.recipe)
+            announce("\"\(entry.name)\" sent to camera")
+            return true
         } catch {
             report(error)
             return false
@@ -265,125 +286,41 @@ final class AppState {
     }
 
     func renameSlot(_ slot: Int, name: String) async {
-        do {
-            let result = try await api.renameRecipe(slot: slot, name: name)
-            if result.success {
-                await loadSavedRecipes()
-                announce("Renamed to \"\(name)\"")
-            } else {
-                report(result.error ?? "Rename failed")
-            }
-        } catch { report(error) }
+        guard var entry = savedRecipe(forSlot: slot) else { return }
+        entry.name = name
+        savedRecipes.removeAll { $0.slot == slot }
+        savedRecipes.append(entry)
+        LocalStore.saveSavedRecipes(savedRecipes)
+        announce("Renamed to \"\(name)\"")
     }
 
     func deleteSlot(_ slot: Int) async {
         let name = savedRecipe(forSlot: slot)?.name
-        do {
-            let result = try await api.deleteRecipe(slot: slot)
-            if result.success {
-                await loadSavedRecipes()
-                announce(name.map { "Deleted \"\($0)\"" } ?? "Deleted")
-            } else {
-                report(result.error ?? "Delete failed")
-            }
-        } catch { report(error) }
+        savedRecipes.removeAll { $0.slot == slot }
+        LocalStore.saveSavedRecipes(savedRecipes)
+        announce(name.map { "Deleted \"\($0)\"" } ?? "Deleted")
     }
 
-    // MARK: - Quick Connect / manual connect
-
-    // The Pi's two well-known addresses for this transport -- not a secret
-    // (no credentials here, just which network path to use). Real camera
-    // credentials (ip/mac/userId/password) are never hardcoded in this app;
-    // they live only in the Pi's own saved_cameras.json (gitignored) and are
-    // fetched fresh below.
-    static let networkServerURL = "http://10.42.0.1:8080"
-    static let gadgetServerURL = "http://192.168.7.2:8080"
-    // A second, independent server instance -- same code, running as a
-    // Docker container on the Synology NAS (Chuck-NAS) instead of the Pi.
-    // Its own saved_cameras.json/saved_recipes.json are separate from the
-    // Pi's.
-    static let synologyServerURL = "http://192.168.4.250:8080"
+    // MARK: - Quick Connect (saved Wi-Fi camera profiles)
 
     func loadSavedCameras() async {
-        do { savedCameras = try await api.savedCameras() } catch { report(error) }
-    }
-
-    /// Switches to the given server address (Wi-Fi AP vs. USB gadget), then
-    /// connects using whichever camera profile is already saved on THAT
-    /// server -- same physical camera either way, just a different path
-    /// from this iPad to the Pi. Named "Quick Connect (Network)"/"(USB
-    /// Gadget)" in the UI.
-    @discardableResult
-    func quickConnect(serverURL: String) async -> Bool {
-        serverURLString = serverURL
-        await refreshStatus()
-        guard serverReachable == true else {
-            report("Can't reach the Pi at \(serverURL). Check the cable/Wi-Fi connection.")
-            return false
-        }
-        await loadSavedCameras()
-        guard let cam = savedCameras.first else {
-            report("No saved camera profile on this server yet -- use \"Save as Quick Connect\" from the Connect form first.")
-            return false
-        }
-        return await connectNetwork(ip: cam.ip, mac: cam.mac, userId: cam.userId, password: cam.password)
+        savedCameras = LocalStore.loadSavedCameras()
     }
 
     @discardableResult
-    func connectNetwork(ip: String, mac: String, userId: String, password: String) async -> Bool {
-        isBusy = true
-        defer { isBusy = false }
-        do {
-            let result = try await api.connectNetwork(ip: ip, mac: mac, userId: userId, password: password)
-            if result.success {
-                await refreshStatus()
-                await loadCameraInfo()
-                if let recipe = await fetchRecipeFromCamera() { workingRecipe = recipe }
-                announce("Connected to \(cameraModel.isEmpty ? "camera" : cameraModel)")
-            } else {
-                report(result.error ?? "Connect failed")
-            }
-            return result.success
-        } catch {
-            report(error)
-            return false
-        }
+    func quickConnect(_ cam: SavedCamera) async -> Bool {
+        await connectWifi(ip: cam.ip, userId: cam.userId, password: cam.password)
     }
 
-    func saveQuickConnect(name: String, ip: String, mac: String, userId: String, password: String) async {
-        do {
-            let result = try await api.saveCamera(SavedCamera(name: name, ip: ip, mac: mac, userId: userId, password: password))
-            if result.success {
-                await loadSavedCameras()
-                announce("Saved Quick Connect \"\(name)\"")
-            } else {
-                report(result.error ?? "Save failed")
-            }
-        } catch { report(error) }
+    func saveQuickConnect(name: String, ip: String, userId: String, password: String) async {
+        savedCameras.removeAll { $0.name == name }
+        savedCameras.append(SavedCamera(name: name, ip: ip, userId: userId, password: password))
+        LocalStore.saveSavedCameras(savedCameras)
+        announce("Saved Quick Connect \"\(name)\"")
     }
 
-    func findCameraIP(mac: String) async -> String? {
-        do {
-            let result = try await api.findCamera(mac: mac)
-            return result.found ? result.ip : nil
-        } catch {
-            report(error)
-            return nil
-        }
-    }
-
-    func disconnect() async {
-        do {
-            _ = try await api.disconnect()
-            await refreshStatus()
-            announce("Disconnected")
-        } catch { report(error) }
-    }
-
-    func shutdownPi() async {
-        do {
-            _ = try await api.shutdownPi()
-            announce("Shutting down the Pi...")
-        } catch { report(error) }
+    func deleteSavedCamera(_ cam: SavedCamera) {
+        savedCameras.removeAll { $0.name == cam.name }
+        LocalStore.saveSavedCameras(savedCameras)
     }
 }

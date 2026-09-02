@@ -18,6 +18,7 @@ Wants=network-online.target
 Type=simple
 User=__REPLACE_WITH_USER__
 WorkingDirectory=__REPLACE_WITH_REPO_PATH__/server/build
+Environment=CAMERALINK_PLATFORM=pi
 ExecStart=__REPLACE_WITH_REPO_PATH__/server/build/cameralink_server
 Restart=on-failure
 RestartSec=2

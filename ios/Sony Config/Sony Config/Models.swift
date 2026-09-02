@@ -40,27 +40,10 @@ enum ISOValue: Codable, Equatable, Hashable {
     ].map(ISOValue.value)
 }
 
-struct StatusResponse: Codable {
-    var connected: Bool
-    var model: String
-}
-
-struct CameraInfo: Codable {
-    var modelName: String?
-    var bodySerialNumber: String?
-    var softwareVersion: String?
-    var lensModelName: String?
-    var lensVersionNumber: String?
-    var batteryLevel: String?
-    var batteryRemain: Int?
-    var mediaSlot1Remaining: Int?
-    var mediaSlot2Remaining: Int?
-    var error: String?
-}
-
-// The full read/write recipe shape -- mirrors buildRecipeBody() /
-// readRecipeJson() in server/public/index.html and server/main.cpp
-// exactly, field for field.
+// The read/write recipe shape mapped directly onto PTP property codes by
+// RecipeCameraClient -- mirrors server/main.cpp's readRecipeJson()/
+// writeRecipeJson() field for field (pictureProfileSlot was never wired
+// up there either -- kept only as an unused legacy field).
 struct Recipe: Codable, Equatable {
     var preset: String?
     var pictureProfileSlot: String?
@@ -79,7 +62,6 @@ struct Recipe: Codable, Equatable {
     var iso: ISOValue?
     var aspectRatio: String?
     var fileType: String?
-    var error: String?
 
     static let blank = Recipe()
 }
@@ -132,24 +114,27 @@ struct SavedRecipeEntry: Codable, Identifiable {
 struct SavedCamera: Codable, Identifiable, Hashable {
     var name: String
     var ip: String
-    var mac: String
     var userId: String
     var password: String
     var id: String { name }
 
     static func == (lhs: SavedCamera, rhs: SavedCamera) -> Bool { lhs.name == rhs.name }
     func hash(into hasher: inout Hasher) { hasher.combine(name) }
-}
 
-struct SimpleSuccess: Codable {
-    var success: Bool
-    var error: String?
-    var slot: Int?
-}
-
-struct FindResponse: Codable {
-    var found: Bool
-    var ip: String
+    // Prepopulated on first launch (see LocalStore.loadSavedCameras) so
+    // there's no manual entry needed for the camera's normal home-network
+    // Wi-Fi mode. Low risk to hardcode: the camera only exposes this
+    // userId/password pair while its own Access Authen. Info screen is
+    // open, i.e. only while physically being configured in person, and
+    // per earlier confirmation these credentials don't regenerate. IP is
+    // this camera's current DHCP lease on the home network (2026-08-29) --
+    // update here if the router ever hands out a different one.
+    static let homeNetworkDefault = SavedCamera(
+        name: "Home Network",
+        ip: "192.168.4.24",
+        userId: "emF9mA",
+        password: "6TgT2xQW"
+    )
 }
 
 // Display-name lookups mirroring server/main.cpp's presetName()/
